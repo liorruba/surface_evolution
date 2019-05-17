@@ -18,3 +18,9 @@ double ** meshgridX(double *x, double *y, int lengthx, int lengthy);
 // This function creates an array ymat to serve as the y coordinate of a 2D grid.
 // The first element of the input array must be the array length.
 double ** meshgridY(double *x, double *y, int lengthx, int lengthy);
+
+// This function creates a matrix populated by zeros, whose size is nxm.
+double ** zeros(int n, int m);
+
+// Print a matrix "object" to file
+void printMatrixToFile(double ** matrix, int gridSize, char * fileName);

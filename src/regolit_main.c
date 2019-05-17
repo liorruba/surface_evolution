@@ -10,16 +10,12 @@
 #include<sys/resource.h>
 #include<sys/types.h>
 #include<inttypes.h>
+#include "../include/log.h"
 #include "../include/grid.h"
+#include "../include/histogram.h"
+#include "../include/utility.h"
 
 // Structs
-// A histogram is a 2-D array in which the first column is bins and the second column is counts.
-typedef struct{
-  double * bins;
-  int * counts;
-  int length;
-} histogram;
-
 // A quick map to store variables:
 typedef struct{
   char name[50];
@@ -49,49 +45,6 @@ double c = 1.467e-6;
 /////////////
 //Functions//
 /////////////
-uint64_t get_time()
-{
-  struct timespec t;
-  clock_gettime(CLOCK_MONOTONIC, &t);
-  return t.tv_sec * 1e9 + t.tv_nsec;
-}
-
-// Log file:
-void createLogFile(){
-  FILE * logFile = fopen("log/log.txt","w+"); // Create the log file. Remove if exists.
-  if (logFile == NULL){
-    printf("ERROR: Cannot create log file.");
-    exit(EXIT_FAILURE);
-  }
-  else{
-    fclose(logFile);
-  }
-}
-
-// Function to check if string is empty:
-int isEmpty(const char *s) {
-  while (*s != '\0') {
-    if (!isspace((unsigned char)*s))
-      return 0;
-    s++;
-  }
-  return 1;
-}
-
-// Add a new log entry
-void addLogEntry(char *str){
-  // Logging variables:
-  time_t now = time(0);
-  struct tm * timenow = localtime(&now);
-  char timeInString[50];
-
-  FILE * logFile = fopen("log/log.txt","a+"); // Append to log file.
-  strftime(timeInString, sizeof(timeInString), "%Y-%m-%d %H:%M:%S", timenow); // Format time string.
-
-  fprintf(logFile, "%s\t%s\n", timeInString, str); // Write to log file.
-  fclose(logFile);
-}
-
 // Read config file:
 varlist readConfig(){
   FILE * configFile = fopen("config/config.cfg","r");
@@ -162,71 +115,6 @@ double setVariable(varlist varList, char * varName){
   return varList.vars[i].value;
 }
 
-// Generate a uniformly distributed random number:
-double randU(double low, double high)
-{
-	return (high - low) * drand48() + low;
-}
-
-
-// This function creates a matrix populated by zeros, whose size is nxm.
-double ** zeros(int n, int m){
-	double **zmat = (double **)malloc(sizeof(double) * (n));
-	for (int i = 0; i < n; i++)
-		zmat[i] = (double *)malloc(sizeof(double) * (m));
-
-	// Populate with zeros:
-	for (int j = 0; j < n; j++) {
-		 for (int i = 0; i < m; i++) {
-			zmat[i][j] = 0;
-		}
-	}
-
-	return zmat;
-}
-
-histogram createHistogram(double minBin, double maxBin, int numOfBins){
-  histogram hist;
-
-  // Calulcate the exponent for the logvec function via change of base:
-  double minBinExponent = log(minBin)/log(sqrt(2));
-  double maxBinExponent = log(maxBin)/log(sqrt(2));
-
-  // Create the bins and vals arrays:
-  double * bins = logspace(minBinExponent, maxBinExponent, numOfBins, sqrt(2));
-
-  // Set the histogram length:
-  hist.length = numOfBins;
-  // Allocate memory to the data array in histogram:
-  hist.bins = (double *)malloc(sizeof(double) * (numOfBins));
-  hist.counts = (int *)malloc(sizeof(int) * (numOfBins));
-
-  for (int i = 0; i < numOfBins; i++){
-    hist.bins[i] = bins[i];
-    hist.counts[i] = 0;
-  }
-
-  return hist;
-}
-
-// This function recieves a value and an existing histogram and returns a histogram.
-histogram addToHistogram(double *val, histogram hist){
-  if ((*val < hist.bins[0]) || (*val > hist.bins[hist.length - 1])){
-    // TODO: INCREASE HISTOGRAM SIZE.
-  }
-  else {
-    // Iterate over histogram:
-    for (int i = 1; i < hist.length; i++){
-      // If in bin:
-      if (*val < hist.bins[i]){
-        hist.counts[i-1]++;
-        break;
-      }
-    }
-  }
-  return hist;
-}
-
 void createCraterInZmat(int gridSize, double *craterDiameter, double xPosition, double yPosition, double **xmat, double **ymat, double **zmat){
 	// double tic = get_time();
 	double distFromCraterCenter = 0; // For later use.
@@ -256,18 +144,6 @@ void createCraterInZmat(int gridSize, double *craterDiameter, double xPosition, 
 			}
 		}
 	}
-}
-
-void printMatrixToFile(double ** matrix, int gridSize, char * fileName){
-  FILE * file = fopen(fileName,"w+");
-
-	for (int i = 0; i < gridSize; i++){
-		for (int j = 0; j < gridSize; j++){
-			fprintf(file, "%f ",matrix[i][j]);
-		}
-		fprintf(file, "\n");
-	}
-	fclose(file);
 }
 
 ////////////////

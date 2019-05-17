@@ -64,3 +64,32 @@ double ** meshgridY(double *x, double *y, int lengthx, int lengthy){
 
 	return ymat;
 }
+
+// This function creates a matrix populated by zeros, whose size is nxm.
+double ** zeros(int n, int m){
+	double **zmat = (double **)malloc(sizeof(double) * (n));
+	for (int i = 0; i < n; i++)
+		zmat[i] = (double *)malloc(sizeof(double) * (m));
+
+	// Populate with zeros:
+	for (int j = 0; j < n; j++) {
+		 for (int i = 0; i < m; i++) {
+			zmat[i][j] = 0;
+		}
+	}
+
+	return zmat;
+}
+
+// Print a matrix "object" to file
+void printMatrixToFile(double ** matrix, int gridSize, char * fileName){
+  FILE * file = fopen(fileName,"w+");
+
+	for (int i = 0; i < gridSize; i++){
+		for (int j = 0; j < gridSize; j++){
+			fprintf(file, "%f ",matrix[i][j]);
+		}
+		fprintf(file, "\n");
+	}
+	fclose(file);
+}
