@@ -1,10 +1,15 @@
+#define _XOPEN_SOURCE 700
+#define __STDC_FORMAT_MACROS
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
 #include<ctype.h>
 #include<string.h>
-#include <sys/time.h>
-#include <sys/resource.h>
+#include<time.h>
+#include<sys/time.h>
+#include<sys/resource.h>
+#include<sys/types.h>
+#include <inttypes.h>
 
 // Structs
 // A histogram is a 2-D array in which the first column is bins and the second column is counts.
@@ -29,12 +34,12 @@ typedef struct{
 //Constants//
 /////////////
 // Simulation parameters:
-double regionWidth = 1; // km
-double resolution = 1e-3; // km
-double endTime = 100; // Ma
-double depthToDiameter = 0.2;
-double minimumDiameter = 1e-3; // Crater minimum diameter, km.
-double printTimeStep = 1e-1; // Time step for printing data in Ma.
+double regionWidth;  // km
+double resolution; // km
+double endTime; // Ma
+double depthToDiameter;
+double minimumDiameter; // Crater minimum diameter, km.
+double printTimeStep; // Time step for printing data in Ma.
 
 // Crater production constants:
 double b = 3.209;
@@ -43,13 +48,11 @@ double c = 1.467e-6;
 /////////////
 //Functions//
 /////////////
-// DEBUG
-double get_time()
+uint64_t get_time()
 {
-    struct timeval t;
-    struct timezone tzp;
-    gettimeofday(&t, &tzp);
-    return t.tv_sec + t.tv_usec*1e-6;
+  struct timespec t;
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return t.tv_sec * 1e9 + t.tv_nsec;
 }
 
 // Log file:
@@ -143,7 +146,7 @@ varlist readConfig(){
 }
 
 // Get variable from list:
-double getVariable(varlist varList, char * varName){
+double setVariable(varlist varList, char * varName){
   int i;
 
   for (i = 0; i < varList.numberOfVars; i++) {
@@ -315,6 +318,7 @@ void createCraterInZmat(int gridSize, double *craterDiameter, double **xmat, dou
 
 	double xPosition = randU(-regionWidth/2, regionWidth/2); // Randomize the x position of the crater.
 	double yPosition = randU(-regionWidth/2, regionWidth/2); // Randomize the y position of the crater.
+
 	double craterRadius = *craterDiameter/2; // Calculate the crater radius
 
 	// Find approximate inital i and j:
@@ -369,20 +373,19 @@ int main() {
   varlist varList = readConfig();
 
   // Set variables:
-  regionWidth = getVariable(varList, "regionWidth");
-  resolution = getVariable(varList, "resolution");
-  endTime = getVariable(varList, "endTime");
-  depthToDiameter = getVariable(varList, "depthToDiameter");
-  minimumDiameter = getVariable(varList, "minimumDiameter");
-  printTimeStep = getVariable(varList, "printTimeStep");
+  regionWidth = setVariable(varList, "regionWidth");
+  resolution = setVariable(varList, "resolution");
+  endTime = setVariable(varList, "endTime");
+  depthToDiameter = setVariable(varList, "depthToDiameter");
+  minimumDiameter = setVariable(varList, "minimumDiameter");
+  printTimeStep = setVariable(varList, "printTimeStep");
 
   // Crater production constants:
-  b = getVariable(varList, "b");
-  c = getVariable(varList, "c");
+  b = setVariable(varList, "b");
+  c = setVariable(varList, "c");
 
 	// Initialize the random number generator seed:
-	srand48(time(NULL));
-
+	srand48((long) get_time());
   // Declare crater related varialbes:
   // (DO NO TOUCH)
   double diameter;
