@@ -7,7 +7,7 @@ OBJ = $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 CPPFLAGS += -std=c99
 CFLAGS += -Wall
-LDLIBS += -lm
+LDLIBS += -lm -lrt
 
 all: $(EXE)
 

@@ -1,4 +1,6 @@
 // This file contains various functions to help manage the code.
+#define _XOPEN_SOURCE 700
+#define __STDC_FORMAT_MACROS
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
