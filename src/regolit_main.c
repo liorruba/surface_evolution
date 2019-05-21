@@ -10,22 +10,13 @@
 #include<sys/resource.h>
 #include<sys/types.h>
 #include<inttypes.h>
+#include <dirent.h>
+#include "../include/regolit_main.h"
+#include "../include/crater.h"
 #include "../include/log.h"
 #include "../include/grid.h"
 #include "../include/histogram.h"
 #include "../include/utility.h"
-
-// Structs
-// A quick map to store variables:
-typedef struct{
-  char name[50];
-  double value;
-} var;
-
-typedef struct{
-  var * vars;
-  int numberOfVars;
-} varlist;
 
 /////////////
 //Constants//
@@ -37,10 +28,11 @@ double endTime; // Ma
 double depthToDiameter;
 double minimumDiameter; // Crater minimum diameter, km.
 double printTimeStep; // Time step for printing data in Ma.
+int craterProfile;
 
 // Crater production constants:
-double b = 3.209;
-double c = 1.467e-6;
+double b;
+double c;
 
 /////////////
 //Functions//
@@ -115,45 +107,27 @@ double setVariable(varlist varList, char * varName){
   return varList.vars[i].value;
 }
 
-void createCraterInZmat(int gridSize, double *craterDiameter, double xPosition, double yPosition, double **xmat, double **ymat, double **zmat){
-	// double tic = get_time();
-	double distFromCraterCenter = 0; // For later use.
-	double newDepth = 0; // The new crater depth.
-
-	double craterRadius = *craterDiameter/2; // Calculate the crater radius
-
-	// Find approximate inital i and j:
-	int iInit = floor( ((xPosition + regionWidth/2) - 2 * craterRadius) / resolution ); if(iInit < 0) iInit = 0;
-	int iFinal = ceil( ((xPosition + regionWidth/2) + 2 * craterRadius) / resolution ); if(iFinal > gridSize) iFinal = gridSize;
-	int jInit = floor( ((yPosition + regionWidth/2) - 2 * craterRadius) / resolution ); if(jInit < 0) jInit = 0;
-	int jFinal = ceil( ((yPosition + regionWidth/2) + 2 * craterRadius) / resolution ); if(jFinal > gridSize) jFinal = gridSize;
-	// int iInit = 0, iFinal = gridSize, jInit = 0, jFinal = gridSize;
-
-	for (int i = iInit; i < iFinal; i++){
-		for (int j = jInit; j < jFinal; j++){
-			distFromCraterCenter = sqrt(pow(xmat[j][i] - xPosition, 2) + pow(ymat[j][i] - yPosition, 2));
-      // printf("Pos: %f, %f %f %f\n",xPosition, yPosition, xmat[i][j], ymat[i][j]);
-			// if inside the crater:
-			if ( distFromCraterCenter <= craterRadius ){
-				// printf("Pos: %f, %f; idx: %d %d %d %d; diam: %f\n",xPosition, yPosition, iInit, iFinal, jInit, jFinal,craterRadius*2);
-				newDepth = 2 * depthToDiameter / craterRadius * pow(distFromCraterCenter,2) - 2 * depthToDiameter * craterRadius;
-
-				if (newDepth < zmat[i][j]){
-						zmat[i][j] = newDepth;
-				}
-			}
-		}
-	}
-}
-
 ////////////////
 // START MAIN //
 ////////////////
 
 int main() {
   // Prepare directories:
-  system("mkdir ./output");
-  system("mkdir ./log");
+  DIR * outputdir = opendir("./output");
+  if (outputdir){
+    closedir(outputdir);
+  }
+  else {
+    system("mkdir ./output");
+  }
+
+  DIR * logdir = opendir("./log");
+  if (logdir){
+    closedir(logdir);
+  }
+  else {
+    system("mkdir ./log");
+  }
 
   // Create log:
   createLogFile();
@@ -168,6 +142,7 @@ int main() {
   depthToDiameter = setVariable(varList, "depthToDiameter");
   minimumDiameter = setVariable(varList, "minimumDiameter");
   printTimeStep = setVariable(varList, "printTimeStep");
+  craterProfile = (int) setVariable(varList, "craterProfile");
 
   // Crater production constants:
   b = setVariable(varList, "b");
@@ -178,8 +153,10 @@ int main() {
   // Declare crater related varialbes:
   // (DO NO TOUCH)
   double diameter;
-  double xPosition;
-  double yPosition;
+  double xPosition; // Craters coordinates
+  double yPosition; // Craters coordinates
+  double xGhost; // Ghost craters coordinates
+  double yGhost; // Ghost craters coordinates
   double quantile;
   int zMatrixIndex = 1; // The index to add to the end of the output matrix file (zmat_1.txt).
 
@@ -208,7 +185,7 @@ int main() {
 
   // Start simulation:
   addLogEntry("Starting simulation:");
-	for (long i = 0; i < totalNumberOfCraters; i++){
+	for (long i = 0; i < 1; i++){
 
     xPosition = randU(-regionWidth/2, regionWidth/2); // Randomize the x position of the crater.
     yPosition = randU(-regionWidth/2, regionWidth/2); // Randomize the y position of the crater.
@@ -216,7 +193,40 @@ int main() {
     diameter = minimumDiameter * pow(quantile, -1/b);
 
     cratersHistogram = addToHistogram(&diameter, cratersHistogram);
-		createCraterInZmat(gridSize, &diameter, xPosition, yPosition, xmat, ymat, zmat);
+
+		createCrater(gridSize, &diameter, xPosition, yPosition, xmat, ymat, zmat, craterProfile);
+
+    // If the crater exceeds the grid, wrap around it by creating a ghost crater:
+    // Check if a side or a corner crater:
+    // A corner:
+    if ( (fabs(xPosition) > regionWidth/2 - diameter/2) && (fabs(yPosition) > regionWidth/2 - diameter/2) ){
+      // Calculate ghost crater position as sgn(x) * (region_width - x);
+      xGhost = (-xPosition/fabs(xPosition)) * (regionWidth - xPosition * (xPosition/fabs(xPosition)));
+      yGhost = (-yPosition/fabs(yPosition)) * (regionWidth - yPosition * (yPosition/fabs(yPosition)));
+
+      // Create three ghost crater:
+      createCrater(gridSize, &diameter, xPosition, yGhost, xmat, ymat, zmat, craterProfile);
+      createCrater(gridSize, &diameter, xGhost, yPosition, xmat, ymat, zmat, craterProfile);
+      createCrater(gridSize, &diameter, xGhost, yGhost, xmat, ymat, zmat, craterProfile);
+    }
+
+    // A side
+    if ( (fabs(xPosition) > regionWidth/2 - diameter/2) && (fabs(yPosition) < regionWidth/2 - diameter/2)){
+      // Calculate ghost crater position as sgn(x) * (region_width - x);
+      xGhost = (-xPosition/fabs(xPosition)) * (regionWidth - xPosition * (xPosition/fabs(xPosition)));
+
+      // Create one ghost crater:
+      createCrater(gridSize, &diameter, xGhost, yPosition, xmat, ymat, zmat, craterProfile);
+    }
+
+    // A side
+    if ( (fabs(xPosition) < regionWidth/2 - diameter/2) && (fabs(yPosition) > regionWidth/2 - diameter/2)){
+      // Calculate ghost crater position as sgn(x) * (region_width - x);
+      yGhost = (-yPosition/fabs(yPosition)) * (regionWidth - yPosition * (yPosition/fabs(yPosition)));
+
+      // Create one ghost crater:
+      createCrater(gridSize, &diameter, xPosition, yGhost, xmat, ymat, zmat, craterProfile);
+    }
 
     // Print progress to a file:
     if (i%numberOfCratersInTimestep == 0){
@@ -238,21 +248,8 @@ int main() {
   printMatrixToFile(zmat, gridSize, "./output/zmat.txt");
 
   // Print craters histogram to file:
-  addLogEntry("Creating histogram file.");
-  FILE *cratersHistogramFile;
-  cratersHistogramFile = fopen("./output/craters_histogram.txt","w+");
-  if (cratersHistogramFile == NULL){
-    addLogEntry("Cannot create histogram file.");
-  }
-  else{
-    addLogEntry("Histogram file successfully created.");
-  }
-
-  for (int i = 0; i < cratersHistogram.length; i++){
-    fprintf(cratersHistogramFile, "%f\t",cratersHistogram.bins[i]);
-    fprintf(cratersHistogramFile, "%d\n",cratersHistogram.counts[i]);
-  }
-  fclose(cratersHistogramFile);
+  addLogEntry("Printing crater histogram file.");
+  printHistogram(cratersHistogram, "./output/craters_histogram.txt");
 
 	// Free memory
   addLogEntry("Freeing memory.");

@@ -9,5 +9,8 @@ typedef struct{
 // Create a histogram "object" with some range [minBin, maxBim] and size numOfBins.
 histogram createHistogram(double minBin, double maxBin, int numOfBins);
 
-// This function recieves a value and an existing histogram and returns a histogram.
+// This function receives a value and an existing histogram and returns a histogram.
 histogram addToHistogram(double *val, histogram hist);
+
+// This function prints a histogram to file:
+void printHistogram(histogram hist, char *path);

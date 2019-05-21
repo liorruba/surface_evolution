@@ -1,18 +1,27 @@
 EXE = regolit_main
 SRC_DIR = src
 OBJ_DIR = obj
+UNAME := $(shell uname)
 
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 CPPFLAGS += -std=c99
 CFLAGS += -Wall
-LDLIBS += -lm -lrt
+LDLIBSLINUX += -lm -lrt
+LDLIBSMAC += -lm
 
 all: $(EXE)
 
 $(EXE): $(OBJ)
-	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+ifeq ($(UNAME),Linux)
+	$(CC) $(LDFLAGS) $^ $(LDLIBSLINUX) -o $@
+endif
+
+ifeq ($(UNAME),Darwin)
+	$(CC) $(LDFLAGS) $^ $(LDLIBSMAC) -o $@
+endif
+	# Create dirs:
 	mkdir log
 	mkdir output
 

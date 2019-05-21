@@ -12,7 +12,7 @@ double craterBowlShapedProfile(double craterRadius, double depthToDiameter, doub
   double craterDepth = 2 * craterRadius * depthToDiameter;
   double sphereRadius = (pow(craterRadius,2) + pow(craterDepth,2)) / 2 / craterDepth;
 
-  return sphereRadius - craterDepth - sqrt(pow(sphereRadius,2) - distanceFromCraterCenter);
+  return sphereRadius - craterDepth - sqrt(pow(sphereRadius,2) - pow(distanceFromCraterCenter,2));
 }
 
 // Form a new crater:
@@ -33,17 +33,19 @@ void createCrater(int gridSize, double *craterDiameter, double xPosition, double
 			distanceFromCraterCenter = sqrt(pow(xmat[j][i] - xPosition, 2) + pow(ymat[j][i] - yPosition, 2));
 			// if inside the crater:
 			if (distanceFromCraterCenter <= craterRadius){
-        switch (craterProfile){
-          case 1:
-            newDepth = craterParabolicProfile(craterRadius, depthToDiameter, distanceFromCraterCenter);
-          case 2:
-            newDepth = craterBowlShapedProfile(craterRadius, depthToDiameter, distanceFromCraterCenter);
-          case 3:
-            newDepth = craterParabolicProfile(craterRadius, depthToDiameter, distanceFromCraterCenter);
+        if (craterProfile == 1){
+          newDepth = craterParabolicProfile(craterRadius, depthToDiameter, distanceFromCraterCenter);
+        }
+        if (craterProfile == 2){
+          newDepth = craterBowlShapedProfile(craterRadius, depthToDiameter, distanceFromCraterCenter);
+        }
+        if (craterProfile == 3){
+          // TODO: Create Fasset crater
+          newDepth = craterBowlShapedProfile(craterRadius, depthToDiameter, distanceFromCraterCenter);
         }
 
-				if (newDepth < zmat[i][j]){
-          zmat[i][j] = newDepth;
+				if (newDepth < zmat[j][i]){
+          zmat[j][i] = newDepth;
 				}
 			}
 		}
