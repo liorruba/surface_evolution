@@ -1,36 +1,40 @@
-EXE = regolit_main
-SRC_DIR = src
-OBJ_DIR = obj
-UNAME := $(shell uname)
+CXX      := -c++
+CXXFLAGS := -pedantic-errors -Wall -Wextra -Werror
+LDFLAGS  := -L/usr/lib -lstdc++ -lm
+BUILD    := ./build
+OBJ_DIR  := $(BUILD)/obj
+APP_DIR  := $(BUILD)/apps
+TARGET   := regolit_main.run
+INCLUDE  := -Iinclude/
+SRC      :=                      \
+   $(wildcard src/*.cpp)         \
 
-SRC = $(wildcard $(SRC_DIR)/*.c)
-OBJ = $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+OBJECTS := $(SRC:%.cpp=$(OBJ_DIR)/%.o)
 
-CPPFLAGS += -std=c99
-CFLAGS += -Wall
-LDLIBSLINUX += -lm -lrt
-LDLIBSMAC += -lm
+all: build $(APP_DIR)/$(TARGET)
 
-all: $(EXE)
+$(OBJ_DIR)/%.o: %.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) $(INCLUDE) -o $@ -c $<
 
-$(EXE): $(OBJ)
-ifeq ($(UNAME),Linux)
-	$(CC) $(LDFLAGS) $^ $(LDLIBSLINUX) -o $@
-endif
+$(APP_DIR)/$(TARGET): $(OBJECTS)
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) $(INCLUDE) $(LDFLAGS) -o $(APP_DIR)/$(TARGET) $(OBJECTS)
 
-ifeq ($(UNAME),Darwin)
-	$(CC) $(LDFLAGS) $^ $(LDLIBSMAC) -o $@
-endif
-	# Create dirs:
-	mkdir log
-	mkdir output
+.PHONY: all build clean debug release
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+build:
+	@mkdir -p $(APP_DIR)
+	@mkdir -p $(OBJ_DIR)
+
+debug: CXXFLAGS += -DDEBUG -g
+debug: all
+
+release: CXXFLAGS += -O2
+release: all
 
 clean:
-	rm $(OBJ) regolit_main
-	rm -r log
-	rm -r output
-
-.PHONY: all clean
+	-@rm -rvf $(OBJ_DIR)/*
+	-@rm -rvf $(APP_DIR)/*
+	-@rm "log/log.txt"
+	-@rm "output/"*
