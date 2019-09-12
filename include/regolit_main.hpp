@@ -11,7 +11,10 @@ extern double regionWidth; // km
 extern double resolution; // 1/km
 extern double endTime; // Ma
 extern double printTimeStep; // Time step for printing data in Ma.
+extern double initialThickness; // Initial thickness of subsurface layer.
 extern bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive.
+extern bool isEmplaceSecondaries; // Should emplace ejecta? Computationally extensive.
+extern bool runTests; // Should emplace ejecta? Computationally extensive.
 
 // Crater formation variables:
 extern double depthToDiameter; // Dimensionless ratio

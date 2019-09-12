@@ -2,10 +2,10 @@
 class Surface {
 public:
   Surface(double regionWidth, double resolution);
+  double area;
   std::vector<double> x;
   std::vector<double> y;
-  std::vector< std::vector<double> > elevation;
-  // std::vector< std::vector<double> > ice;
+  std::vector< std::vector<SubsurfColumn> > subsurfColumns;
   void formCrater(Crater crater);
   void emplaceEjecta(Crater crater);
   void print(int index);
@@ -13,8 +13,8 @@ public:
 
 private:
   int gridSize;
-  double craterParabolicDepthProfile(double craterRadius, double distanceFromCraterCenter, double refElevation, double normAngle);
-  double craterBowlShapedDepthProfile(double craterRadius, double distanceFromCraterCenter, double refElevation, double normAngle);
+  double craterParabolicDepthProfile(double craterRadius, double distanceFromCraterCenter, double normAngle);
+  double craterBowlShapedDepthProfile(double craterRadius, double distanceFromCraterCenter, double normAngle);
   double rimHeight(double craterRadius, double distanceFromCraterCenter);
-  std::vector< std::vector<double> > initMatrix();
+  std::vector< std::vector<SubsurfColumn> > initializeSubsurface();
 };

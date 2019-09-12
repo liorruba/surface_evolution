@@ -4,6 +4,7 @@
 #include<cmath>
 #include<vector>
 #include "../include/regolit_main.hpp"
+#include "../include/layer.hpp"
 #include "../include/impactor.hpp"
 #include "../include/crater.hpp"
 #include "../include/utility.hpp"

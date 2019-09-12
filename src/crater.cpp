@@ -3,6 +3,7 @@
 #include<cstdlib>
 #include<cmath>
 #include<vector>
+#include "../include/layer.hpp"
 #include "../include/regolit_main.hpp"
 #include "../include/impactor.hpp"
 #include "../include/utility.hpp"
@@ -17,7 +18,7 @@ Crater::Crater(Impactor impactor) : ejectaDistance(), ejectaThickness() {
   finalRadius = calcFinalCraterRadius();
   calcEjectaThickness(impactor);
   numberOfSecondaries = pow(0.05 * finalRadius, slope_secondaries) * pow(resolution, -slope_secondaries);
-
+  ejectedMass = Layer(0,0,0,0); // Mass ejected from the crater stored in a single layer. This will be used to redistribute material in ejecta.
 }
 
 // Second constructor: predetermined impact location

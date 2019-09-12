@@ -1,8 +1,8 @@
 #define _XOPEN_SOURCE 700
 #define __STDC_FORMAT_MACROS
-#include <iostream>
-#include <cstdlib>
-#include <cmath>
+#include<iostream>
+#include<cstdlib>
+#include<cmath>
 #include<cctype>
 #include<cstring>
 #include<ctime>
@@ -15,15 +15,18 @@
 #include<inttypes.h>
 #include<dirent.h>
 #include<vector>
-#include<vector>
 #include "../include/regolit_main.hpp"
 #include "../include/log.hpp"
 #include "../include/utility.hpp"
 #include "../include/histogram.hpp"
 #include "../include/impactor.hpp"
+#include "../include/layer.hpp"
 #include "../include/crater.hpp"
+#include "../include/subsurf_column.hpp"
 #include "../include/surface.hpp"
 #include "../include/utility.hpp"
+#include "../include/tests.hpp"
+
 
 //////////////////////////////
 // DECLARE INPUT PARAMETERS //
@@ -33,7 +36,10 @@ double regionWidth; // km
 double resolution; // 1/km
 double endTime; // Ma
 double printTimeStep; // Time step for printing data in Ma.
+double initialThickness; // Initial thickness of subsurface layer.
 bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive.
+bool isEmplaceSecondaries; // Should emplace ejecta? Computationally extensive.
+bool runTests; // Should emplace ejecta? Computationally extensive.
 
 // Crater formation variables:
 double depthToDiameter; // Dimensionless ratio, crater depth to diameter
@@ -149,7 +155,10 @@ int main() {
   resolution = setVariable(varList, "resolution");
   endTime = setVariable(varList, "endTime");
   printTimeStep = setVariable(varList, "printTimeStep");
+  initialThickness = setVariable(varList, "initialThickness");
   isEmplaceEjecta = setVariable(varList, "isEmplaceEjecta");
+  isEmplaceSecondaries = setVariable(varList, "isEmplaceSecondaries");
+  runTests = setVariable(varList, "runTests");
 
   // Crater formation variables:
   depthToDiameter = setVariable(varList, "depthToDiameter");
@@ -178,8 +187,18 @@ int main() {
 	// Initialize the random number generator seed:
 	srand48((long) get_time());
 
-  // Generate grid:
-  Surface surface(regionWidth, resolution);
+  ///////////////
+  // Run tests //
+  ///////////////
+  if (runTests) {
+    // If tests did not pass:
+    if (tests())
+      std::cout << "All tests passed successfully." << std::endl;
+    else
+      std::cout << "Not all tests passed successfully." << std::endl;
+
+    return 0;
+  }
 
   ////////////////////////////////////////////
   ////////////////////////////////////////////
@@ -190,29 +209,44 @@ int main() {
   ////////////////////////////////////////////
   ////////////////////////////////////////////
 
-	// Simulated area:
-	double area = pow(regionWidth, 2);
+  ////////////////////////////
+  // Simulation parameters  //
+  ////////////////////////////
+  // Generate grid:
+  Surface surface(regionWidth, resolution);
 
   // Total number of craters to be created:
-	long totalNumberOfImpactors = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * endTime * area * moonEarthFluxRatio); // total number of impactors to generate larger than minimumDiameter: N/At = cD^-b.
-  long numberOfCratersInTimestep = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * printTimeStep * area * moonEarthFluxRatio); // number of impactors to generate larger than minimumDiameter: N/At = cD^-b in some time interval.
+	long totalNumberOfImpactors = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * endTime * surface.area * moonEarthFluxRatio); // total number of impactors to generate larger than minimumDiameter: N/At = cD^-b.
+  // long numberOfCratersInTimestep = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * printTimeStep * surface.area * moonEarthFluxRatio); // number of impactors to generate larger than minimumDiameter: N/At = cD^-b in some time interval.
 
   // Craters and impactors histograms:
   Histogram cratersHistogram(minimumImpactorDiameter * 10, regionWidth, 12); // Crater histogram from 10*minimumImpactorDiameter to regionWidth meters
   Histogram impactorsHistogram(minimumImpactorDiameter, 1e4, 12); // Impactor histogram from 0 to 10 km
-  // Start simulation:
+
+  //////////////////////
+  // Start simulation //
+  //////////////////////
   addLogEntry("Starting simulation:");
   char logEntry[50];
   sprintf(logEntry, "Number of craters in simulation: %ld.", totalNumberOfImpactors);
   addLogEntry(logEntry);
+  totalNumberOfImpactors = 1;
 	for (long i = 0; i < totalNumberOfImpactors; i++){
     // Randomize a new impactor:
-    Impactor impactor;
+    // Impactor impactor;
+    //
+    // // Add diameter to crater histogram:
+    // impactorsHistogram.add(2 * impactor.radius);
+    // // Form a crater:
+    // Crater crater(impactor);
+    // // Add diameter to crater histogram:
+    // cratersHistogram.add(2 * crater.finalRadius);
+    Impactor impactor(5*(i+1));
 
     // Add diameter to crater histogram:
     impactorsHistogram.add(2 * impactor.radius);
     // Form a crater:
-    Crater crater(impactor);
+    Crater crater(impactor, 150*i, 0);
     // Add diameter to crater histogram:
     cratersHistogram.add(2 * crater.finalRadius);
 
@@ -221,6 +255,7 @@ int main() {
     if (crater.finalRadius > 2 * resolution && isEmplaceEjecta){
         surface.emplaceEjecta(crater);
     }
+
     // Ghost cratering:
     // If the crater exceeds the grid, wrap around it by creating a ghost crater.
     // If a corner:
@@ -257,22 +292,24 @@ int main() {
     }
 
     // Secondary craters:
-    // Form a secondary crater within 2 crater diameters from the primary:
-    if (crater.numberOfSecondaries > 0){
-      char logEntry[50];
-      sprintf(logEntry, "Primary diameter: %f. Number of secondaries: %d.", 2*crater.finalRadius, crater.numberOfSecondaries);
-      addLogEntry(logEntry);
-    }
-    for (long j = 0; j < crater.numberOfSecondaries; j++){
-      double secondaryXPosition = randU(crater.xPosition - 4 * crater.finalRadius, crater.xPosition + 4 * crater.finalRadius);
-      double secondaryYPosition = randU(crater.yPosition - 4 * crater.finalRadius, crater.yPosition + 4 * crater.finalRadius);
-      double secondaryRadius = resolution * pow(randU(0,1), -1/slope_secondaries); // Set impactor radius from the cumulative distribution, meters
-      Crater secondaryCrater(secondaryXPosition, secondaryYPosition, secondaryRadius);
-      surface.formCrater(secondaryCrater);
+    if (isEmplaceSecondaries) {
+      // Form a secondary crater within 2 crater diameters from the primary:
+      if (crater.numberOfSecondaries > 0){
+        char logEntry[50];
+        sprintf(logEntry, "Primary diameter: %f. Number of secondaries: %d.", 2*crater.finalRadius, crater.numberOfSecondaries);
+        addLogEntry(logEntry);
+      }
+      for (long j = 0; j < crater.numberOfSecondaries; j++){
+        double secondaryXPosition = randU(crater.xPosition - 4 * crater.finalRadius, crater.xPosition + 4 * crater.finalRadius);
+        double secondaryYPosition = randU(crater.yPosition - 4 * crater.finalRadius, crater.yPosition + 4 * crater.finalRadius);
+        double secondaryRadius = resolution * pow(randU(0,1), -1/slope_secondaries); // Set impactor radius from the cumulative distribution, meters
+        Crater secondaryCrater(secondaryXPosition, secondaryYPosition, secondaryRadius);
+        surface.formCrater(secondaryCrater);
+      }
     }
 
     // Print progress to a file:
-    if (i%numberOfCratersInTimestep == 0){
+    if (true){//i%numberOfCratersInTimestep == 0){
       // Pring z matrix:
       surface.print(printIndex);
 
@@ -282,6 +319,7 @@ int main() {
       addLogEntry(logEntry);
       printIndex++;
     }
+
 	 }
 
   // Print craters histogram to file:
