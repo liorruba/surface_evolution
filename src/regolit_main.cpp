@@ -23,7 +23,7 @@
 #include "../include/layer.hpp"
 #include "../include/crater.hpp"
 #include "../include/subsurf_column.hpp"
-#include "../include/surface.hpp"
+#include "../include/grid.hpp"
 #include "../include/utility.hpp"
 #include "../include/tests.hpp"
 
@@ -213,11 +213,11 @@ int main() {
   // Simulation parameters  //
   ////////////////////////////
   // Generate grid:
-  Surface surface(regionWidth, resolution);
+  Grid grid(regionWidth, resolution);
 
   // Total number of craters to be created:
-	long totalNumberOfImpactors = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * endTime * surface.area * moonEarthFluxRatio); // total number of impactors to generate larger than minimumDiameter: N/At = cD^-b.
-  // long numberOfCratersInTimestep = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * printTimeStep * surface.area * moonEarthFluxRatio); // number of impactors to generate larger than minimumDiameter: N/At = cD^-b in some time interval.
+	long totalNumberOfImpactors = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * endTime * grid.area * moonEarthFluxRatio); // total number of impactors to generate larger than minimumDiameter: N/At = cD^-b.
+  long numberOfCratersInTimestep = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * printTimeStep * grid.area * moonEarthFluxRatio); // number of impactors to generate larger than minimumDiameter: N/At = cD^-b in some time interval.
 
   // Craters and impactors histograms:
   Histogram cratersHistogram(minimumImpactorDiameter * 10, regionWidth, 12); // Crater histogram from 10*minimumImpactorDiameter to regionWidth meters
@@ -230,7 +230,7 @@ int main() {
   char logEntry[50];
   sprintf(logEntry, "Number of craters in simulation: %ld.", totalNumberOfImpactors);
   addLogEntry(logEntry);
-  totalNumberOfImpactors = 1;
+  totalNumberOfImpactors = numberOfCratersInTimestep;
 	for (long i = 0; i < totalNumberOfImpactors; i++){
     // Randomize a new impactor:
     // Impactor impactor;
@@ -241,19 +241,19 @@ int main() {
     // Crater crater(impactor);
     // // Add diameter to crater histogram:
     // cratersHistogram.add(2 * crater.finalRadius);
-    Impactor impactor(5*(i+1));
+    Impactor impactor;
 
     // Add diameter to crater histogram:
     impactorsHistogram.add(2 * impactor.radius);
     // Form a crater:
-    Crater crater(impactor, 150*i, 0);
+    Crater crater(impactor);
     // Add diameter to crater histogram:
     cratersHistogram.add(2 * crater.finalRadius);
 
-    // Form a crater on the surface:
-    surface.formCrater(crater);
+    // Form a crater on the grid:
+    grid.formCrater(crater);
     if (crater.finalRadius > 2 * resolution && isEmplaceEjecta){
-        surface.emplaceEjecta(crater);
+        grid.emplaceEjecta(crater);
     }
 
     // Ghost cratering:
@@ -263,32 +263,38 @@ int main() {
       // Calculate ghost crater position as sgn(x) * (region_width - x);
       xGhost = (-crater.xPosition/fabs(crater.xPosition)) * (regionWidth - crater.xPosition * (crater.xPosition/fabs(crater.xPosition)));
       yGhost = (-crater.yPosition/fabs(crater.yPosition)) * (regionWidth - crater.yPosition * (crater.yPosition/fabs(crater.yPosition)));
-      surface.formCrater(Crater(impactor, xGhost, yGhost));
-      surface.emplaceEjecta(Crater(impactor, xGhost, yGhost));
-      surface.formCrater(Crater(impactor, xGhost, crater.yPosition));
-      surface.emplaceEjecta(Crater(impactor, xGhost, yGhost));
-      surface.formCrater(Crater(impactor, crater.xPosition, yGhost));
-      surface.emplaceEjecta(Crater(impactor, crater.xPosition, yGhost));
+
+      Crater ghost1 = Crater(impactor, xGhost, yGhost);
+      Crater ghost2 = Crater(impactor, xGhost, crater.yPosition);
+      Crater ghost3 = Crater(impactor, crater.xPosition, yGhost);
+      grid.formCrater(ghost1);
+      grid.emplaceEjecta(ghost1);
+      grid.formCrater(ghost2);
+      grid.emplaceEjecta(ghost2);
+      grid.formCrater(ghost3);
+      grid.emplaceEjecta(ghost3);
     }
 
     // If a side:
     if ( (fabs(crater.xPosition) > regionWidth/2 - crater.finalRadius/2) && (fabs(crater.yPosition) < regionWidth/2 - crater.finalRadius/2)){
       // Calculate ghost crater position as sgn(x) * (region_width - x);
       xGhost = (-crater.xPosition/fabs(crater.xPosition)) * (regionWidth - crater.xPosition * (crater.xPosition/fabs(crater.xPosition)));
+      Crater ghost2 = Crater(impactor, xGhost, crater.yPosition);
 
       // Create one ghost crater:
-      surface.formCrater(Crater(impactor, xGhost, crater.yPosition));
-      surface.emplaceEjecta(Crater(impactor, xGhost, crater.yPosition));
+      grid.formCrater(ghost2);
+      grid.emplaceEjecta(ghost2);
     }
 
     // If another side:
     if ( (fabs(crater.xPosition) < regionWidth/2 - crater.finalRadius/2) && (fabs(crater.yPosition) > regionWidth/2 - crater.finalRadius/2)){
       // Calculate ghost crater position as sgn(x) * (region_width - x);
       yGhost = (-crater.yPosition/fabs(crater.yPosition)) * (regionWidth - crater.yPosition * (crater.yPosition/fabs(crater.yPosition)));
+      Crater ghost3 = Crater(impactor, crater.xPosition, yGhost);
 
       // Create one ghost crater:
-      surface.formCrater(Crater(impactor, crater.xPosition, yGhost));
-      surface.emplaceEjecta(Crater(impactor, crater.xPosition, yGhost));
+      grid.formCrater(ghost3);
+      grid.emplaceEjecta(ghost3);
     }
 
     // Secondary craters:
@@ -304,14 +310,14 @@ int main() {
         double secondaryYPosition = randU(crater.yPosition - 4 * crater.finalRadius, crater.yPosition + 4 * crater.finalRadius);
         double secondaryRadius = resolution * pow(randU(0,1), -1/slope_secondaries); // Set impactor radius from the cumulative distribution, meters
         Crater secondaryCrater(secondaryXPosition, secondaryYPosition, secondaryRadius);
-        surface.formCrater(secondaryCrater);
+        grid.formCrater(secondaryCrater);
       }
     }
 
     // Print progress to a file:
-    if (true){//i%numberOfCratersInTimestep == 0){
+    if (i%numberOfCratersInTimestep == 0){
       // Pring z matrix:
-      surface.print(printIndex);
+      grid.printSurface(printIndex);
 
       // Print to log:
       char logEntry[100];
@@ -326,7 +332,8 @@ int main() {
   addLogEntry("Printing crater histogram file.");
   cratersHistogram.print("./output/craters_histogram.txt");
   impactorsHistogram.print("./output/impactor_histogram.txt");
-  surface.print(0);
+  grid.printSurface(0);
+  grid.printGrid(0);
 	// Free memory
   addLogEntry("Freeing memory.");
   addLogEntry("Simulation has ended.");

@@ -19,6 +19,14 @@ Layer::Layer(double _thickness, double _regolithFraction, double _iceFraction, d
   normalizeComposition(); // Normalize layer composition.
 }
 
+// Second constructor for a dummy layer used in printing the column. This layer is not normalized.
+Layer::Layer(double dummy_numOfLayers, double dummy_elevation){
+  thickness = dummy_numOfLayers;
+  regolithFraction = dummy_elevation;
+  iceFraction = -1;
+  sootFraction = -1;
+}
+
 // Normlize later composition:
 void Layer::normalizeComposition() {
   double sum = regolithFraction + iceFraction + sootFraction;
@@ -58,6 +66,11 @@ void Layer::shrink(double thicknessToRemove) {
 }
 
 // Print layer
-void Layer::print() {
-  std::cout << "T: " << thickness << " R: " << regolithFraction << " I: " << iceFraction << " S: " << sootFraction << std::endl;
+void Layer::print(bool isNiceInterface) {
+  if  (isNiceInterface){
+    std::cout << "T: " << thickness << " R: " << regolithFraction << " I: " << iceFraction << " S: " << sootFraction << std::endl;
+  }
+  else {
+    std::cout << thickness << ", " << regolithFraction << ", " << iceFraction << ", " << sootFraction << std::endl;
+  }
 }

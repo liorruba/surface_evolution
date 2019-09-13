@@ -6,12 +6,14 @@ public:
   double iceFraction;
   double sootFraction;
 
-  Layer(double thickness = 0, double regolithFraction = 0, double iceFraction = 0, double sootFraction = 0);
-
+  // First constructor for regular layer:
+  Layer(double thickness, double regolithFraction, double iceFraction, double sootFraction);
+  // Second constructor for a dummy layer used in printing the column. This layer is not normalized:
+  Layer(double _thickness, double _regolithFraction);
   bool compareComposition(Layer layer);
   void consolidate(Layer layer);
   void shrink(double depthToRemove);
-  void print();
+  void print(bool isNiceInterface = true);
 
 private:
   void normalizeComposition();

@@ -10,7 +10,7 @@
 #include "../include/crater.hpp"
 
 // First constructor: randomize impact location
-Crater::Crater(Impactor impactor) : ejectaDistance(), ejectaThickness() {
+Crater::Crater(Impactor impactor) : ejectedMass(Layer(0,0,0,0)), ejectaDistance(), ejectaThickness() {
   xPosition = randU(-regionWidth/2, regionWidth/2);
   yPosition = randU(-regionWidth/2, regionWidth/2);
   transientRadius = calcTransientCraterRadius(impactor.radius, impactor.mass, impactor.velocity);
@@ -18,11 +18,10 @@ Crater::Crater(Impactor impactor) : ejectaDistance(), ejectaThickness() {
   finalRadius = calcFinalCraterRadius();
   calcEjectaThickness(impactor);
   numberOfSecondaries = pow(0.05 * finalRadius, slope_secondaries) * pow(resolution, -slope_secondaries);
-  ejectedMass = Layer(0,0,0,0); // Mass ejected from the crater stored in a single layer. This will be used to redistribute material in ejecta.
 }
 
 // Second constructor: predetermined impact location
-Crater::Crater(Impactor impactor, double _xPosition, double _yPosition){
+Crater::Crater(Impactor impactor, double _xPosition, double _yPosition) : ejectedMass(Layer(0,0,0,0)){
   xPosition = _xPosition;
   yPosition = _yPosition;
   transientRadius = calcTransientCraterRadius(impactor.radius, impactor.mass, impactor.velocity);
@@ -33,7 +32,9 @@ Crater::Crater(Impactor impactor, double _xPosition, double _yPosition){
 }
 
 // Third constructor: predetermined crater radius
-Crater::Crater(double _xPosition, double _yPosition, double _finalRadius) : xPosition(_xPosition), yPosition(_yPosition), finalRadius(_finalRadius) {}
+Crater::Crater(double _xPosition, double _yPosition, double _finalRadius) : xPosition(_xPosition), yPosition(_yPosition), finalRadius(_finalRadius), ejectedMass(Layer(0,0,0,0)) {
+  numberOfSecondaries = pow(0.05 * finalRadius, slope_secondaries) * pow(resolution, -slope_secondaries);
+}
 
 ///////////////////
 // Crater physical parameters

@@ -1,14 +1,15 @@
 // This class defines the surface properties:
-class Surface {
+class Grid {
 public:
-  Surface(double regionWidth, double resolution);
+  Grid(double regionWidth, double resolution);
   double area;
   std::vector<double> x;
   std::vector<double> y;
   std::vector< std::vector<SubsurfColumn> > subsurfColumns;
-  void formCrater(Crater crater);
-  void emplaceEjecta(Crater crater);
-  void print(int index);
+  void formCrater(Crater &crater);
+  void emplaceEjecta(Crater &crater);
+  void printSurface(int index);
+  void printGrid(int index);
 
 
 private:

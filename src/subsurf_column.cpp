@@ -11,7 +11,9 @@
 #include "../include/subsurf_column.hpp"
 
 SubsurfColumn::SubsurfColumn() {
-  subsurfLayers.push_back(Layer(initialThickness, 1, 0, 0));
+  subsurfLayers.push_back(Layer(initialThickness * 0.9, 1, 0, 0));
+  subsurfLayers.push_back(Layer(initialThickness * 0.01, 0, 1, 0));
+  subsurfLayers.push_back(Layer(initialThickness * 0.0005, 1, 0, 0));
 
   surfaceElevation = initialThickness;
 }
@@ -65,14 +67,8 @@ void SubsurfColumn::removeMaterial(double depthToRemove) {
 // Integrate column composition, return single normalized layer:
 Layer SubsurfColumn::integrateColumnComposition(double depthToIntergrate) {
   Layer buffLayer = Layer(0,0,0,0);
-  // std::cout << std::endl;
-  // subsurfLayers.begin() -> print();
-  // subsurfLayers.end() -> print();
-  // std::cout << std::endl;
-  //
+
   std::vector<Layer>::iterator it = subsurfLayers.end();
-  // (*it).print();
-  // return buffLayer;
 
   it = subsurfLayers.end();
   it--;
@@ -85,25 +81,28 @@ Layer SubsurfColumn::integrateColumnComposition(double depthToIntergrate) {
   remainingLayer.shrink(fabs((it -> thickness) - depthToIntergrate));
   buffLayer.consolidate(remainingLayer);
   return buffLayer;
-  //
-  // // Consolidate with the remaining material:
-  // Layer remainingLayer = subsurfLayers.back();
-  // remainingLayer.shrink(fabs(subsurfLayers.back().thickness - depthToIntergrate));
-  // buffLayer.consolidate(remainingLayer);
-
-
 }
 
 // Print layers in column:
-void SubsurfColumn::print() {
+void SubsurfColumn::print(bool isNiceInterface) {
 
-  for (long i = (subsurfLayers.size() - 1); i >= 0; i--)
-  {
-    std::cout << "***" << " Layer " << i << " ***" << std::endl;
-    subsurfLayers[i].print();
+  if (isNiceInterface) {
+    for (long i = (subsurfLayers.size() - 1); i >= 0; i--)
+    {
+      std::cout << "***" << " Layer " << i << " ***" << std::endl;
+      subsurfLayers[i].print(isNiceInterface);
+    }
+    std::cout << "Number of layers in column: " << subsurfLayers.size() << std::endl;
+    std::cout << "Surface elevation: " << surfaceElevation << std::endl;
   }
-  std::cout << "Number of layers in column: " << subsurfLayers.size() << std::endl;
-  std::cout << "Surface elevation: " << surfaceElevation << std::endl;
+  else {
+    for (long i = (subsurfLayers.size() - 1); i >= 0; i--)
+    {
+      std::cout << i << ", " << std::endl;
+      subsurfLayers[i].print(isNiceInterface);
+      std::cout << std::endl;
+    }
+  }
 }
 
 // Remove all the layers in the subsurface column:

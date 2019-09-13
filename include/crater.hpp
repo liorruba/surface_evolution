@@ -7,9 +7,9 @@ public:
   double transientRadiusGravity;
   double finalRadius;
   int numberOfSecondaries;
+  Layer ejectedMass;
   std::vector<double> ejectaDistance;
   std::vector<double> ejectaThickness;
-  Layer ejectedMass;
 
   Crater(Impactor impactor);
   Crater(Impactor impactor, double xPosition, double yPosition);
