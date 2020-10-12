@@ -3,6 +3,7 @@
 #include<cstdlib>
 #include<cmath>
 #include<vector>
+#include<cassert>
 #include "../include/regolit_main.hpp"
 #include "../include/impactor.hpp"
 #include "../include/utility.hpp"
@@ -11,22 +12,22 @@
 #include "../include/subsurf_column.hpp"
 
 SubsurfColumn::SubsurfColumn() {
-  subsurfLayers.push_back(Layer(initialThickness * 0.9, 1, 0, 0));
-  subsurfLayers.push_back(Layer(initialThickness * 0.01, 0, 1, 0));
-  subsurfLayers.push_back(Layer(initialThickness * 0.0005, 1, 0, 0));
-
+  subsurfLayers.push_back(Layer(initialThickness, 1, 0, 0));
+  // Initially set the surface elevation to the initial thickness
   surfaceElevation = initialThickness;
 }
 
-double SubsurfColumn::get_surfaceElevation() {
+double SubsurfColumn::getSurfaceElevation() {
   return surfaceElevation;
 }
 
 ////
 // Add material to column:
 void SubsurfColumn::addLayer(Layer newLayer) {
-  // If new layer composition is the same as the topmost layer, consolidate:
+  // Thickness cannot be a negative number
+  assert(newLayer.thickness >= 0);
 
+  // If new layer composition is the same as the topmost layer, consolidate:
   if (newLayer.compareComposition(subsurfLayers.back())) {
     subsurfLayers.back().consolidate(newLayer);
   }
@@ -45,6 +46,8 @@ void SubsurfColumn::addLayer(Layer newLayer) {
 ////
 // Remove material from column:
 void SubsurfColumn::removeMaterial(double depthToRemove) {
+  assert(depthToRemove >= 0);
+
   // Change the surface elevation:
   surfaceElevation -= depthToRemove;
 
@@ -55,7 +58,7 @@ void SubsurfColumn::removeMaterial(double depthToRemove) {
   }
 
   // Remove layers to some depth:
-  while ((depthToRemove >= subsurfLayers.back().thickness) && (depthToRemove > 0)) {
+  while ((depthToRemove >= subsurfLayers.back().thickness)) {
     depthToRemove -= subsurfLayers.back().thickness;
     subsurfLayers.pop_back();
   }

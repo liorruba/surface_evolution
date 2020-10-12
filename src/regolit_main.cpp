@@ -1,5 +1,7 @@
 #define _XOPEN_SOURCE 700
 #define __STDC_FORMAT_MACROS
+#define BOOST_GEOMETRY_DISABLE_DEPRECATED_03_WARNING 1
+
 #include<iostream>
 #include<cstdlib>
 #include<cmath>
@@ -27,7 +29,6 @@
 #include "../include/utility.hpp"
 #include "../include/tests.hpp"
 
-
 //////////////////////////////
 // DECLARE INPUT PARAMETERS //
 //////////////////////////////
@@ -37,6 +38,7 @@ double resolution; // 1/km
 double endTime; // Ma
 double printTimeStep; // Time step for printing data in Ma.
 double initialThickness; // Initial thickness of subsurface layer.
+double latitude; // Latitude (for shadow calculation)
 bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive.
 bool isEmplaceSecondaries; // Should emplace ejecta? Computationally extensive.
 bool runTests; // Should emplace ejecta? Computationally extensive.
@@ -44,15 +46,15 @@ bool runTests; // Should emplace ejecta? Computationally extensive.
 // Crater formation variables:
 double depthToDiameter; // Dimensionless ratio, crater depth to diameter
 double rimToDiameter; // Dimensionless ratio, rim height to diameter
-double outerRimExponent; // The exponent of the rim height decrease power law
+double rimDropoffExponent; // The exponent of the rim height decrease power law
 double numberOfZModelShells; // Number of shells in z model (for ejecta calc.)
-int craterProfile; // Chosen crater profile
+int craterProfileType; // Chosen crater profile
 int ejectaSpread; // The spread of the ejecta in crater radii
 double slope_secondaries; // The spread of the ejecta in crater radii
 
 // Impactor distribution variables:
 double slope_b; // Slope of the impactor CDF
-double moonEarthFluxRatio; // Moon-earth impactor flux ratio due to cross-section
+double earthFluxRatioCoefficient; // Moon-earth impactor flux ratio due to cross-section
 double minimumImpactorDiameter; // The smallest impactor in the distribution
 double fluxConstant_c; // The Flux of impactors > 1 m, Ma^-1 m^-2
 double impactorDensity; // The impactor density in kg m^-3
@@ -64,6 +66,18 @@ double k1;
 double Ybar;
 double mu;
 double targetDensity;
+double seismicEfficiency;
+double Q_factor;
+double prim_seis_freq;
+double seis_mean_free;
+double seis_wave_vel;
+
+// Seismic diffusivity parameters
+double Cs;
+double Ki_a;
+double Ki_b;
+double Ki_c;
+double Ki_d;
 
 /////////////
 //Functions//
@@ -156,6 +170,7 @@ int main() {
   endTime = setVariable(varList, "endTime");
   printTimeStep = setVariable(varList, "printTimeStep");
   initialThickness = setVariable(varList, "initialThickness");
+  latitude = setVariable(varList, "latitude");
   isEmplaceEjecta = setVariable(varList, "isEmplaceEjecta");
   isEmplaceSecondaries = setVariable(varList, "isEmplaceSecondaries");
   runTests = setVariable(varList, "runTests");
@@ -163,15 +178,15 @@ int main() {
   // Crater formation variables:
   depthToDiameter = setVariable(varList, "depthToDiameter");
   rimToDiameter = setVariable(varList, "rimToDiameter");
-  outerRimExponent = setVariable(varList, "outerRimExponent");
+  rimDropoffExponent = setVariable(varList, "rimDropoffExponent");
   numberOfZModelShells = setVariable(varList, "numberOfZModelShells");
-  craterProfile = (int) setVariable(varList, "craterProfile");
+  craterProfileType = (int) setVariable(varList, "craterProfileType");
   ejectaSpread = (int) setVariable(varList, "ejectaSpread");
   slope_secondaries = setVariable(varList, "slope_secondaries");
 
   // Impactor distribution variables:
   slope_b = setVariable(varList, "slope_b");
-  moonEarthFluxRatio = setVariable(varList, "moonEarthFluxRatio");
+  earthFluxRatioCoefficient = setVariable(varList, "earthFluxRatioCoefficient");
   minimumImpactorDiameter = setVariable(varList, "minimumImpactorDiameter");
   fluxConstant_c = setVariable(varList, "fluxConstant_c");
   impactorDensity = setVariable(varList, "impactorDensity");
@@ -213,15 +228,16 @@ int main() {
   // Simulation parameters  //
   ////////////////////////////
   // Generate grid:
-  Grid grid(regionWidth, resolution);
+  Grid grid = Grid();
 
   // Total number of craters to be created:
-	long totalNumberOfImpactors = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * endTime * grid.area * moonEarthFluxRatio); // total number of impactors to generate larger than minimumDiameter: N/At = cD^-b.
-  long numberOfCratersInTimestep = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * printTimeStep * grid.area * moonEarthFluxRatio); // number of impactors to generate larger than minimumDiameter: N/At = cD^-b in some time interval.
+	long totalNumberOfImpactors = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * endTime * grid.area * earthFluxRatioCoefficient); // total number of impactors to generate larger than minimumDiameter: N/At = cD^-b.
+  long numberOfCratersInTimestep = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * printTimeStep * grid.area * earthFluxRatioCoefficient); // number of impactors to generate larger than minimumDiameter: N/At = cD^-b in some time interval.
 
   // Craters and impactors histograms:
-  Histogram cratersHistogram(minimumImpactorDiameter * 10, regionWidth, 12); // Crater histogram from 10*minimumImpactorDiameter to regionWidth meters
-  Histogram impactorsHistogram(minimumImpactorDiameter, 1e4, 12); // Impactor histogram from 0 to 10 km
+  Histogram cratersHistogram(minimumImpactorDiameter * 10, regionWidth, 20); // Crater histogram from 10*minimumImpactorDiameter to regionWidth meters
+  Histogram impactorsHistogram(minimumImpactorDiameter, 1e4, 20); // Impactor histogram from minimumImpactorDiameter m to 10 km
+  Histogram cratersDepthHistogram(minimumImpactorDiameter, 1e4, 20); // Impactor histogram from minimumImpactorDiameter m to 10 km
 
   //////////////////////
   // Start simulation //
@@ -230,43 +246,54 @@ int main() {
   char logEntry[50];
   sprintf(logEntry, "Number of craters in simulation: %ld.", totalNumberOfImpactors);
   addLogEntry(logEntry);
-  totalNumberOfImpactors = numberOfCratersInTimestep;
+
 	for (long i = 0; i < totalNumberOfImpactors; i++){
+    Impactor impactor1(20);
+    Impactor impactor2(20);
+    Crater crater1(impactor1, 0, -200);
+    Crater crater2(impactor2, 0, 200);
+
+    // std::cout << grid.subsurfColumns[250][150].getSurfaceElevation() << std::endl;
+    // return 0;
+
+    std::cout << crater1.finalDepth << ", " << crater2.finalDepth << "\n";
+    grid.formCrater(crater1);
+    grid.emplaceEjecta(crater1);
+    grid.updateExistingCratersDepth(crater1);
+    std::cout << crater1.finalDepth << ", " << crater2.finalDepth << "\n";
+    grid.formCrater(crater2);
+    grid.emplaceEjecta(crater2);
+    grid.updateExistingCratersDepth(crater2);
+    std::cout << crater1.finalDepth << ", " << crater2.finalDepth << "\n";
+    break;
     // Randomize a new impactor:
-    // Impactor impactor;
-    //
-    // // Add diameter to crater histogram:
-    // impactorsHistogram.add(2 * impactor.radius);
-    // // Form a crater:
-    // Crater crater(impactor);
-    // // Add diameter to crater histogram:
-    // cratersHistogram.add(2 * crater.finalRadius);
     Impactor impactor;
 
     // Add diameter to crater histogram:
     impactorsHistogram.add(2 * impactor.radius);
-    // Form a crater:
+    // Create a crater instance:
     Crater crater(impactor);
-    // Add diameter to crater histogram:
+    // Record diameter in crater histogram:
     cratersHistogram.add(2 * crater.finalRadius);
 
     // Form a crater on the grid:
     grid.formCrater(crater);
+
     if (crater.finalRadius > 2 * resolution && isEmplaceEjecta){
         grid.emplaceEjecta(crater);
     }
 
-    // Ghost cratering:
+    // "Ghost" craters:
     // If the crater exceeds the grid, wrap around it by creating a ghost crater.
     // If a corner:
-    if ( (fabs(crater.xPosition) > regionWidth/2 - crater.finalRadius) && (fabs(crater.yPosition) > regionWidth/2 - crater.finalRadius) ){
-      // Calculate ghost crater position as sgn(x) * (region_width - x);
-      xGhost = (-crater.xPosition/fabs(crater.xPosition)) * (regionWidth - crater.xPosition * (crater.xPosition/fabs(crater.xPosition)));
-      yGhost = (-crater.yPosition/fabs(crater.yPosition)) * (regionWidth - crater.yPosition * (crater.yPosition/fabs(crater.yPosition)));
+    if ( (fabs(crater.xLocation) > regionWidth/2 - crater.finalRadius) && (fabs(crater.yLocation) > regionWidth/2 - crater.finalRadius) ){
+      // Calculate ghost crater location as sgn(x) * (region_width - x);
+      xGhost = (-crater.xLocation/fabs(crater.xLocation)) * (regionWidth - crater.xLocation * (crater.xLocation/fabs(crater.xLocation)));
+      yGhost = (-crater.yLocation/fabs(crater.yLocation)) * (regionWidth - crater.yLocation * (crater.yLocation/fabs(crater.yLocation)));
 
       Crater ghost1 = Crater(impactor, xGhost, yGhost);
-      Crater ghost2 = Crater(impactor, xGhost, crater.yPosition);
-      Crater ghost3 = Crater(impactor, crater.xPosition, yGhost);
+      Crater ghost2 = Crater(impactor, xGhost, crater.yLocation);
+      Crater ghost3 = Crater(impactor, crater.xLocation, yGhost);
       grid.formCrater(ghost1);
       grid.emplaceEjecta(ghost1);
       grid.formCrater(ghost2);
@@ -276,10 +303,10 @@ int main() {
     }
 
     // If a side:
-    if ( (fabs(crater.xPosition) > regionWidth/2 - crater.finalRadius/2) && (fabs(crater.yPosition) < regionWidth/2 - crater.finalRadius/2)){
-      // Calculate ghost crater position as sgn(x) * (region_width - x);
-      xGhost = (-crater.xPosition/fabs(crater.xPosition)) * (regionWidth - crater.xPosition * (crater.xPosition/fabs(crater.xPosition)));
-      Crater ghost2 = Crater(impactor, xGhost, crater.yPosition);
+    if ( (fabs(crater.xLocation) > regionWidth/2 - crater.finalRadius/2) && (fabs(crater.yLocation) < regionWidth/2 - crater.finalRadius/2)){
+      // Calculate ghost crater location as sgn(x) * (region_width - x);
+      xGhost = (-crater.xLocation/fabs(crater.xLocation)) * (regionWidth - crater.xLocation * (crater.xLocation/fabs(crater.xLocation)));
+      Crater ghost2 = Crater(impactor, xGhost, crater.yLocation);
 
       // Create one ghost crater:
       grid.formCrater(ghost2);
@@ -287,10 +314,10 @@ int main() {
     }
 
     // If another side:
-    if ( (fabs(crater.xPosition) < regionWidth/2 - crater.finalRadius/2) && (fabs(crater.yPosition) > regionWidth/2 - crater.finalRadius/2)){
-      // Calculate ghost crater position as sgn(x) * (region_width - x);
-      yGhost = (-crater.yPosition/fabs(crater.yPosition)) * (regionWidth - crater.yPosition * (crater.yPosition/fabs(crater.yPosition)));
-      Crater ghost3 = Crater(impactor, crater.xPosition, yGhost);
+    if ( (fabs(crater.xLocation) < regionWidth/2 - crater.finalRadius/2) && (fabs(crater.yLocation) > regionWidth/2 - crater.finalRadius/2)){
+      // Calculate ghost crater location as sgn(x) * (region_width - x);
+      yGhost = (-crater.yLocation/fabs(crater.yLocation)) * (regionWidth - crater.yLocation * (crater.yLocation/fabs(crater.yLocation)));
+      Crater ghost3 = Crater(impactor, crater.xLocation, yGhost);
 
       // Create one ghost crater:
       grid.formCrater(ghost3);
@@ -306,13 +333,17 @@ int main() {
         addLogEntry(logEntry);
       }
       for (long j = 0; j < crater.numberOfSecondaries; j++){
-        double secondaryXPosition = randU(crater.xPosition - 4 * crater.finalRadius, crater.xPosition + 4 * crater.finalRadius);
-        double secondaryYPosition = randU(crater.yPosition - 4 * crater.finalRadius, crater.yPosition + 4 * crater.finalRadius);
+        double secondaryxLocation = randU(crater.xLocation - 4 * crater.finalRadius, crater.xLocation + 4 * crater.finalRadius);
+        double secondaryyLocation = randU(crater.yLocation - 4 * crater.finalRadius, crater.yLocation + 4 * crater.finalRadius);
         double secondaryRadius = resolution * pow(randU(0,1), -1/slope_secondaries); // Set impactor radius from the cumulative distribution, meters
-        Crater secondaryCrater(secondaryXPosition, secondaryYPosition, secondaryRadius);
+        Crater secondaryCrater(secondaryxLocation, secondaryyLocation, secondaryRadius);
         grid.formCrater(secondaryCrater);
       }
     }
+
+    // // Update crater depths, after topography has changed:
+    // grid.updateExistingCratersDepth(crater);
+    // cratersDepthHistogram.add(crater.finalDepth);
 
     // Print progress to a file:
     if (i%numberOfCratersInTimestep == 0){
@@ -327,11 +358,11 @@ int main() {
     }
 
 	 }
-
   // Print craters histogram to file:
   addLogEntry("Printing crater histogram file.");
   cratersHistogram.print("./output/craters_histogram.txt");
   impactorsHistogram.print("./output/impactor_histogram.txt");
+  cratersDepthHistogram.print("./output/depth_histogram.txt");
   grid.printSurface(0);
   grid.printGrid(0);
 	// Free memory

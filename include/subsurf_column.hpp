@@ -2,9 +2,10 @@
 class SubsurfColumn {
 public:
   std::vector<Layer> subsurfLayers;
+  bool isPermShadow;
 
   SubsurfColumn();
-  double get_surfaceElevation();
+  double getSurfaceElevation();
   void InitializeColumn();
   void addLayer(Layer layer);
   void removeMaterial(double depthToRemove);

@@ -97,7 +97,7 @@ std::vector<double> surfNormal(std::vector<double> ptA, std::vector<double> ptB,
   return res;
 }
 
-// Vector norm
+// Calculate the norm of a vector
 double vecNorm(std::vector<double> vec){
   return sqrt(pow(vec[0],2) + pow(vec[1],2) + pow(vec[2],2));
 }

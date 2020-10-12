@@ -5,6 +5,9 @@
 #include "../include/tests.hpp"
 #include "../include/layer.hpp"
 #include "../include/subsurf_column.hpp"
+#include "../include/impactor.hpp"
+#include "../include/crater.hpp"
+#include "../include/grid.hpp"
 
 bool tests() {
   bool all_test_passed = 1;
@@ -74,7 +77,7 @@ bool tests() {
     // Add layer tests:
     // Same layer, should consolidate:
     column.addLayer(testLayer);
-    if (fabs(column.get_surfaceElevation() - (initialThickness + 1)) < eps && fabs(column.subsurfLayers.size() - 2) < eps) {
+    if (fabs(column.getSurfaceElevation() - (initialThickness + 1)) < eps && fabs(column.subsurfLayers.size() - 2) < eps) {
           std::cout << "Test passed: add a layer." << std::endl;
         }
      else {
@@ -84,7 +87,7 @@ bool tests() {
 
      // Add another identical layer, should consolidate:
      column.addLayer(testLayer);
-     if (fabs(column.get_surfaceElevation() - (initialThickness + 2)) < eps && fabs(column.subsurfLayers.size() - 2) < eps) {
+     if (fabs(column.getSurfaceElevation() - (initialThickness + 2)) < eps && fabs(column.subsurfLayers.size() - 2) < eps) {
            std::cout << "Test passed: add an identical layer." << std::endl;
          }
       else {
@@ -94,7 +97,7 @@ bool tests() {
 
       // Add a different layer but smaller than the threshold:
       column.addLayer(Layer(1.0/101.0, 1, 0, 0));
-      if (fabs(column.get_surfaceElevation() -  (initialThickness + 2.01)) < eps && fabs(column.subsurfLayers.size() - 2) < eps) {
+      if (fabs(column.getSurfaceElevation() -  (initialThickness + 2.01)) < eps && fabs(column.subsurfLayers.size() - 2) < eps) {
         std::cout << "Test passed: add a layer thinner than threshold." << std::endl;
       }
       else {
@@ -108,7 +111,7 @@ bool tests() {
       column.addLayer(Layer(2, 1, 1, 0));
       column.addLayer(Layer(.3, 1, 0, 1));
       column.removeMaterial(2.5);
-      if (fabs(column.get_surfaceElevation() - (initialThickness + 2.81)) < eps && fabs(column.subsurfLayers.size() - 3) < eps) {
+      if (fabs(column.getSurfaceElevation() - (initialThickness + 2.81)) < eps && fabs(column.subsurfLayers.size() - 3) < eps) {
         std::cout << "Test passed: remove layer." << std::endl;
       }
       else {
@@ -131,12 +134,15 @@ bool tests() {
         all_test_passed = 0;
       }
 
-      SubsurfColumn column3 = SubsurfColumn();
-      column3.removeMaterial(.1); column3.print();
-      Layer l2 = column3.integrateColumnComposition(.1);
-      l2.print();
+    ///////////////////////////
+    // TEST GRID + SHADOWING //
+    ///////////////////////////
+    Grid testGrid = Grid();
+    Crater ctr = Crater(0, 0, 100);
+    testGrid.formCrater(ctr);
+    testGrid.printSurface(0);
+    testGrid.printShadow(0);
 
     //Return tests outcome:
     return all_test_passed;
-
 }

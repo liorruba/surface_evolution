@@ -1,19 +1,23 @@
 // Class for crater object
 class Crater {
 public:
-  double xPosition;
-  double yPosition;
+  double xLocation;
+  double yLocation;
   double transientRadius;
   double transientRadiusGravity;
   double finalRadius;
+  double finalDepth;
+  double finalDepth_init;
+  double rimHeight;
+  double floorElevation;
   int numberOfSecondaries;
   Layer ejectedMass;
   std::vector<double> ejectaDistance;
   std::vector<double> ejectaThickness;
 
   Crater(Impactor impactor);
-  Crater(Impactor impactor, double xPosition, double yPosition);
-  Crater(double _finalRadius, double _xPosition, double _yPosition);
+  Crater(Impactor impactor, double xLocation, double yLocation);
+  Crater(double _finalRadius, double _xLocation, double _yLocation);
 
 private:
   double calcTransientVolume(double impactorRadius, double impactorMass, double impactVelocity);

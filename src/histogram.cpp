@@ -16,8 +16,8 @@ Histogram::Histogram(double minBin, double maxBin, int numOfBins){
   addLogEntry(logEntry);
 
   // calculate the exponent for the logvec function via change of base:
-  double minBinExponent = log(minBin)/log(sqrt(2));
-  double maxBinExponent = log(maxBin)/log(sqrt(2));
+  double minBinExponent = log(minBin)/log(sqrt(2.0));
+  double maxBinExponent = log(maxBin)/log(sqrt(2.0));
 
   // Create the bins and vals arrays:
   bins = logspace(minBinExponent, maxBinExponent, numOfBins, sqrt(2.0));

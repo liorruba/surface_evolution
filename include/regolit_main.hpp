@@ -12,16 +12,17 @@ extern double resolution; // 1/km
 extern double endTime; // Ma
 extern double printTimeStep; // Time step for printing data in Ma.
 extern double initialThickness; // Initial thickness of subsurface layer.
+extern double latitude; // Latitude (for shadow calculation)
 extern bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive.
-extern bool isEmplaceSecondaries; // Should emplace ejecta? Computationally extensive.
-extern bool runTests; // Should emplace ejecta? Computationally extensive.
+extern bool isEmplaceSecondaries; // Should emplace secondaries? Computationally extensive.
+extern bool runTests; // Run tests?
 
 // Crater formation variables:
 extern double depthToDiameter; // Dimensionless ratio
 extern double rimToDiameter; // Dimensionless ratio, rim height to diameter
-extern double outerRimExponent; // The exponent of the rim height decrease power law
+extern double rimDropoffExponent; // The exponent of the rim height decrease power law
 extern double numberOfZModelShells; // Number of shells in z model (for ejecta calc.)
-extern int craterProfile; // Chosen crater profile
+extern int craterProfileType; // Chosen crater profile
 extern int ejectaSpread; // The spread of the ejecta in crater radii
 extern double slope_secondaries; // The spread of the ejecta in crater radii
 
@@ -39,6 +40,18 @@ extern double k1;
 extern double Ybar;
 extern double mu;
 extern double targetDensity;
+extern double seismicEfficiency;
+extern double Q_factor;
+extern double prim_seis_freq;
+extern double seis_mean_free;
+extern double seis_wave_vel;
+
+// Seismic diffusivity parameters
+extern double Cs;
+extern double Ki_a;
+extern double Ki_b;
+extern double Ki_c;
+extern double Ki_d;
 
 // Read config file:
 std::vector<var> readConfig();

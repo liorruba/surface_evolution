@@ -11,29 +11,40 @@
 
 // First constructor: randomize impact location
 Crater::Crater(Impactor impactor) : ejectedMass(Layer(0,0,0,0)), ejectaDistance(), ejectaThickness() {
-  xPosition = randU(-regionWidth/2, regionWidth/2);
-  yPosition = randU(-regionWidth/2, regionWidth/2);
+  xLocation = randU(-regionWidth/2, regionWidth/2);
+  yLocation = randU(-regionWidth/2, regionWidth/2);
   transientRadius = calcTransientCraterRadius(impactor.radius, impactor.mass, impactor.velocity);
   transientRadiusGravity = calcTransientCraterRadiusGravity(impactor.radius, impactor.mass, impactor.velocity);
   finalRadius = calcFinalCraterRadius();
+  finalDepth = depthToDiameter * 2 * finalRadius;
+  finalDepth_init = finalDepth;
+  rimHeight = rimToDiameter * 2 * finalRadius;
   calcEjectaThickness(impactor);
   numberOfSecondaries = pow(0.05 * finalRadius, slope_secondaries) * pow(resolution, -slope_secondaries);
 }
 
 // Second constructor: predetermined impact location
-Crater::Crater(Impactor impactor, double _xPosition, double _yPosition) : ejectedMass(Layer(0,0,0,0)){
-  xPosition = _xPosition;
-  yPosition = _yPosition;
+Crater::Crater(Impactor impactor, double _xLocation, double _yLocation) : ejectedMass(Layer(0,0,0,0)), ejectaDistance(), ejectaThickness(){
+  xLocation = _xLocation;
+  yLocation = _yLocation;
   transientRadius = calcTransientCraterRadius(impactor.radius, impactor.mass, impactor.velocity);
   transientRadiusGravity = calcTransientCraterRadiusGravity(impactor.radius, impactor.mass, impactor.velocity);
   finalRadius = calcFinalCraterRadius();
+  finalDepth = depthToDiameter * 2 * finalRadius;
+  finalDepth_init = finalDepth;
+  rimHeight = rimToDiameter * 2 * finalRadius;
   calcEjectaThickness(impactor);
   numberOfSecondaries = pow(0.05 * finalRadius, slope_secondaries) * pow(resolution, -slope_secondaries);
 }
 
 // Third constructor: predetermined crater radius
-Crater::Crater(double _xPosition, double _yPosition, double _finalRadius) : xPosition(_xPosition), yPosition(_yPosition), finalRadius(_finalRadius), ejectedMass(Layer(0,0,0,0)) {
+// This type of crater has no ejecta
+Crater::Crater(double _xLocation, double _yLocation, double _finalRadius) : xLocation(_xLocation), yLocation(_yLocation), finalRadius(_finalRadius), ejectedMass(Layer(0,0,0,0)), ejectaDistance(), ejectaThickness() {
+  finalDepth = depthToDiameter * 2 * finalRadius;
+  rimHeight = rimToDiameter * 2 * finalRadius;
   numberOfSecondaries = pow(0.05 * finalRadius, slope_secondaries) * pow(resolution, -slope_secondaries);
+  finalDepth = depthToDiameter * 2 * finalRadius;
+  finalDepth_init = finalDepth;
 }
 
 ///////////////////
@@ -100,10 +111,14 @@ void Crater::calcEjectaThickness(Impactor impactor){
     ejectaDistance.insert(ejectaDistance.begin(), z_model_shell_radius[i] + 2 * horizontalVelocity * verticalVelocity / g);
   }
 
-  // Ejecta area and thickness 25-27:
+  // Ejecta area and thickness (Richardson 2009 Eq. 25-27):
   double ejectaArea;
   for (size_t i = (z_model_shell_radius.size() - 1); i > 0 ; i--){
     ejectaArea = M_PI * (pow(ejectaDistance[i], 2) - pow(ejectaDistance[i - 1], 2));
     ejectaThickness.insert(ejectaThickness.begin(), ejectaVolume[i]/ejectaArea);
   }
 }
+
+///////////////////
+// Melt Production:
+///////////////////

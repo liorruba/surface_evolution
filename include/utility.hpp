@@ -27,4 +27,8 @@ std::vector<double> surfNormal(std::vector<double> ptA, std::vector<double> ptB,
 
 double vecNorm(std::vector<double> vec);
 
+// Angle between vector and xy plane:
 double xyPlaneVecAngle(std::vector<double> vec);
+
+// Round up to the nearest grid value
+int roundUp(int numToRound, int multiple);

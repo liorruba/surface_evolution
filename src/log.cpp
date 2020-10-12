@@ -27,6 +27,6 @@ void addLogEntry(const char *str){
   logFile.open("log/log.txt", std::ios_base::app); // Append to log file.
 
   // Logging variables:
-  time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-  logFile << std::ctime(&now) << "\t" << str << std::endl; // Write to log file.
+  time_t now = time(nullptr);
+  logFile << std::put_time(localtime(&now), "%F_%T") << "\t" << str << std::endl; // Write to log file.
 }
