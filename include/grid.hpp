@@ -21,19 +21,28 @@ typedef bg::model::point<double, 3, bg::cs::cartesian> point3;
 // Struct for r-tree which stores index of insertion and location, to be later
 // accessed craters_vector vector.
 struct CraterRef {
-  size_t index;
-  point location;
+        size_t index;
+        point location;
 };
 
 template <>
 struct bgi::indexable<CraterRef>
 {
-    typedef point result_type;
-    point operator()(const CraterRef& c) const { return c.location; }
+        typedef point result_type;
+        point operator()(const CraterRef& c) const {
+                return c.location;
+        }
 };
 
-typedef CraterRef value;
-typedef bgi::rtree< value, bgi::quadratic<16> > rtree_t;
+struct my_equal {
+        using result_type = bool;
+        bool operator() (CraterRef const& v1, CraterRef const& v2) const {
+                return v1.index == v2.index;
+        }
+};
+
+// typedef CraterRef value;
+typedef bgi::rtree< CraterRef, bgi::quadratic<16>, bgi::indexable<CraterRef>,  my_equal> rtree_t;
 
 ////////////////////////
 // Grid class definition
@@ -41,28 +50,32 @@ typedef bgi::rtree< value, bgi::quadratic<16> > rtree_t;
 class Grid {
 
 public:
-  Grid();
-  double area;
-  std::vector<double> x;
-  std::vector<double> y;
-  std::vector< std::vector<SubsurfColumn> > subsurfColumns;
-  void formCrater(Crater &crater);
-  void emplaceEjecta(Crater &crater);
-  void printSurface(int index);
-  void printShadow(int index);
-  void printGrid(int index);
-  void updateExistingCratersDepth(Crater &crater);
-  bool calculatePermanentShadow(int faceti, int facetj, double solarZenith);
+double area;
+std::vector<double> x;
+std::vector<double> y;
+std::vector< std::vector<SubsurfColumn> > subsurfColumns;
+
+Grid();
+void formCrater(Crater &crater);
+void emplaceEjecta(Crater &crater);
+void printSurface(int index);
+void printShadow(int index);
+void printGrid(int index);
+void updateExistingCratersDepth(Crater &crater);
+bool calculatePermanentShadow(int faceti, int facetj, double solarZenith);
+void printExistingCratersToHistogram(double bins);
+void printExistingCraters();
 
 private:
-  int gridSize;
-  double craterParabolicDepthProfile(double craterRadius, double distanceFromCraterCenter, double normAngle);
-  double craterSphericalDepthProfile(double craterRadius, double distanceFromCraterCenter, double normAngle);
-  double rimHeight(double craterRadius, double distanceFromCraterCenter);
-  double getSurfaceElevationAtPoint(double x, double y);
-  double calculateSlope(const Crater crater);
-  std::vector< std::vector<SubsurfColumn> > initializeSubsurface();
-  std::vector<Crater *> cratersVector;
+int gridSize;
+long numberOfCratersOnGrid;
+double craterParabolicDepthProfile(double craterRadius, double distanceFromCraterCenter, double normAngle);
+double craterSphericalDepthProfile(double craterRadius, double distanceFromCraterCenter, double normAngle);
+double rimHeight(double craterRadius, double distanceFromCraterCenter);
+double getSurfaceElevationAtPoint(double x, double y);
+double calculateSlope(const Crater crater);
+std::vector< std::vector<SubsurfColumn> > initializeSubsurface();
+std::map<size_t, Crater *> cratersDict;
 
-  rtree_t rtree;
+rtree_t craters_rtree;
 };
