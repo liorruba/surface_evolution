@@ -277,34 +277,7 @@ int main() {
         addLogEntry(logEntry);
 
         for (long i = 0; i < totalNumberOfImpactors; i++) {
-                Impactor impactor1(50);
-                Impactor impactor2(50);
-                Impactor impactor3(300);
-                Crater crater1(impactor1, 0, -500);
-                // Crater crater2(impactor2, 0, 500);
-                // Crater crater3(impactor3, 0, 0);
-
-                grid.formCrater(crater1);
-                std::cout << crater1.meltHeight << std::endl;
-                grid.emplaceEjecta(crater1);
-                grid.updateExistingCratersDepth(crater1);
-                //
-                // grid.formCrater(crater2);
-                // grid.emplaceEjecta(crater2);
-                // grid.updateExistingCratersDepth(crater2);
-
-                // grid.formCrater(crater3);
-                // grid.emplaceEjecta(crater3);
-                // grid.updateExistingCratersDepth(crater3);
-                // std::cout << crater1.finalRadius << ", " << crater2.finalRadius << ", " << crater3.finalRadius << "\n";
-                // std::cout << crater1.finalDepth << ", " << crater2.finalDepth << ", " << crater3.finalDepth << "\n";
-
-                grid.printExistingCratersToHistogram(20);
-                grid.printExistingCraters();
-
-                break;
                 // Randomize a new impactor:
-                std::cout << i << std::endl;
                 Impactor impactor;
 
                 // Add diameter to crater histogram:
@@ -328,7 +301,6 @@ int main() {
                         // Calculate ghost crater location as sgn(x) * (region_width - x);
                         xGhost = (-crater.xLocation/fabs(crater.xLocation)) * (regionWidth - crater.xLocation * (crater.xLocation/fabs(crater.xLocation)));
                         yGhost = (-crater.yLocation/fabs(crater.yLocation)) * (regionWidth - crater.yLocation * (crater.yLocation/fabs(crater.yLocation)));
-
                         Crater ghost1 = Crater(impactor, xGhost, yGhost);
                         Crater ghost2 = Crater(impactor, xGhost, crater.yLocation);
                         Crater ghost3 = Crater(impactor, crater.xLocation, yGhost);
@@ -363,21 +335,21 @@ int main() {
                 }
 
                 // Secondary craters:
-                // if (isEmplaceSecondaries) {
-                //         // Form a secondary crater within 2 crater diameters from the primary:
-                //         if (crater.numberOfSecondaries > 0) {
-                //                 char logEntry[50];
-                //                 sprintf(logEntry, "Primary diameter: %f. Number of secondaries: %d.", 2*crater.finalRadius, crater.numberOfSecondaries);
-                //                 addLogEntry(logEntry);
-                //         }
-                //         for (long j = 0; j < crater.numberOfSecondaries; j++) {
-                //                 double secondaryxLocation = randU(crater.xLocation - 4 * crater.finalRadius, crater.xLocation + 4 * crater.finalRadius);
-                //                 double secondaryyLocation = randU(crater.yLocation - 4 * crater.finalRadius, crater.yLocation + 4 * crater.finalRadius);
-                //                 double secondaryRadius = resolution * pow(randU(0,1), -1/slope_secondaries); // Set impactor radius from the cumulative distribution, meters
-                //                 Crater secondaryCrater(secondaryxLocation, secondaryyLocation, secondaryRadius);
-                //                 grid.formCrater(secondaryCrater);
-                //         }
-                // }
+                if (isEmplaceSecondaries) {
+                        // Form a secondary crater within 2 crater diameters from the primary:
+                        if (crater.numberOfSecondaries > 0) {
+                                char logEntry[50];
+                                sprintf(logEntry, "Primary diameter: %f. Number of secondaries: %d.", 2*crater.finalRadius, crater.numberOfSecondaries);
+                                addLogEntry(logEntry);
+                        }
+                        for (long j = 0; j < crater.numberOfSecondaries; j++) {
+                                double secondaryxLocation = randU(crater.xLocation - 4 * crater.finalRadius, crater.xLocation + 4 * crater.finalRadius);
+                                double secondaryyLocation = randU(crater.yLocation - 4 * crater.finalRadius, crater.yLocation + 4 * crater.finalRadius);
+                                double secondaryRadius = resolution * pow(randU(0,1), -1/slope_secondaries); // Set impactor radius from the cumulative distribution, meters
+                                Crater secondaryCrater(secondaryxLocation, secondaryyLocation, secondaryRadius);
+                                grid.formCrater(secondaryCrater);
+                        }
+                }
 
                 // // Update crater depths, after topography has changed:
                 // grid.updateExistingCratersDepth(crater);

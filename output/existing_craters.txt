@@ -1,2 +1,0 @@
-diameter, depth, initial_depth
-1368.25,273.65,273.65

@@ -45,6 +45,7 @@ std::vector< std::vector<SubsurfColumn> > Grid::initializeSubsurface(){
 void Grid::formCrater(Crater &crater){
         double distanceFromCraterCenter = 0; // For later use.
         double craterProfile = 0; // The maximum depth of the new cavity.
+
         double elevationAtCenter = getSurfaceElevationAtPoint(crater.xLocation, crater.yLocation);
 
         // Add crater to vector:
@@ -61,7 +62,7 @@ void Grid::formCrater(Crater &crater){
 
         for (int i = iInit; i < iFinal; i++) {
                 for (int j = jInit; j < jFinal; j++) {
-                        distanceFromCraterCenter = sqrt(pow(x[i] - crater.xLocation, 2) + pow(y[j] - crater.yLocation, 2));
+                        distanceFromCraterCenter = sqrt(pow(x.at(i) - crater.xLocation, 2) + pow(y.at(j) - crater.yLocation, 2));
 
                         // if inside the crater:
                         if (distanceFromCraterCenter <= crater.finalRadius) {
@@ -89,8 +90,8 @@ void Grid::formCrater(Crater &crater){
 
                                 // Melt production
                                 if (isProduceMelt) {
-                                        std::cout << craterProfile << std::endl;
-                                        std::cout << crater.meltHeight - crater.rimHeight << std::endl;
+                                        // std::cout << craterProfile << std::endl;
+                                        // std::cout << crater.meltHeight - crater.rimHeight << std::endl;
                                         if (craterProfile > crater.meltHeight - crater.rimHeight) {
                                                 std::cout << crater.meltHeight - crater.rimHeight << std::endl;
                                                 craterProfile = crater.meltHeight - crater.rimHeight;
@@ -98,16 +99,16 @@ void Grid::formCrater(Crater &crater){
                                 }
 
                                 craterProfile = elevationAtCenter - craterProfile;
-                                double leftToRemove = subsurfColumns[j][i].getSurfaceElevation() - craterProfile;
+                                double leftToRemove = subsurfColumns.at(j).at(i).getSurfaceElevation() - craterProfile;
 
                                 // If the thickness of the materialToRemove is positive, remove material
                                 if (leftToRemove >= 0) {
-                                        crater.ejectedMass.consolidate(subsurfColumns[j][i].integrateColumnComposition(leftToRemove));
-                                        subsurfColumns[j][i].removeMaterial(leftToRemove);
+                                        crater.ejectedMass.consolidate(subsurfColumns.at(j).at(i).integrateColumnComposition(leftToRemove));
+                                        subsurfColumns.at(j).at(i).removeMaterial(leftToRemove);
                                 }
                                 // If the thickness of the materialToRemove is negative, add material
                                 else {
-                                        subsurfColumns[j][i].addLayer(Layer(fabs(leftToRemove),1,0,0));
+                                        subsurfColumns.at(j).at(i).addLayer(Layer(fabs(leftToRemove),1,0,0));
                                 }
                         }
 
@@ -116,7 +117,7 @@ void Grid::formCrater(Crater &crater){
                                 double rimDropoff = crater.rimHeight * pow((distanceFromCraterCenter / crater.finalRadius), -rimDropoffExponent);
 
                                 // Add a layer of pure regolith (1,0,0) as the rim dropoff.
-                                subsurfColumns[j][i].addLayer(Layer(rimDropoff,1,0,0));
+                                subsurfColumns.at(j).at(i).addLayer(Layer(rimDropoff,1,0,0));
                         }
                 }
         }
@@ -137,13 +138,13 @@ void Grid::emplaceEjecta(Crater &crater){
 
         for (int i = iInit; i < iFinal; i++) {
                 for (int j = jInit; j < jFinal; j++) {
-                        distanceFromCraterCenter = sqrt(pow(x[i] - crater.xLocation, 2) + pow(y[j] - crater.yLocation, 2));
+                        distanceFromCraterCenter = sqrt(pow(x.at(i) - crater.xLocation, 2) + pow(y[j] - crater.yLocation, 2));
 
                         // if inside the ejecta blanket:
                         if (distanceFromCraterCenter <= ejectaSpread * crater.finalRadius && distanceFromCraterCenter > crater.finalRadius) {
                                 // Changes subsurface composition based on ejected mass.
 
-                                subsurfColumns[j][i].addLayer(
+                                subsurfColumns.at(j).at(i).addLayer(
                                         Layer(linearInterp(crater.ejectaDistance, crater.ejectaThickness, distanceFromCraterCenter),
                                               crater.ejectedMass.regolithFraction,
                                               crater.ejectedMass.iceFraction,
@@ -160,7 +161,12 @@ double Grid::getSurfaceElevationAtPoint(double pt_x, double pt_y){
         int i = std::lower_bound(x.begin(), x.end(), pt_x) - x.begin();
         int j = std::lower_bound(y.begin(), y.end(), pt_y) - y.begin();
 
-        return subsurfColumns[j][i].getSurfaceElevation();
+        // Ghost craters are a special case, since floor(location) equals
+        // gridSize, causing a segmentation fault:
+        if (i == gridSize) i -= 1;
+        if (j == gridSize) j -= 1;
+
+        return subsurfColumns.at(j).at(i).getSurfaceElevation();
 }
 
 void Grid::updateExistingCratersDepth(Crater &crater) {
@@ -282,8 +288,8 @@ bool Grid::calculatePermanentShadow(int faceti, int facetj, double solarZenithAn
         double facetElevation = subsurfColumns[facetj][faceti].getSurfaceElevation();
 
         for (int i = faceti + 1; i < gridSize; i++) {
-                heightDiff = facetElevation - subsurfColumns[facetj][i].getSurfaceElevation();
-                horDistanceDiff = fabs(x[facetj] - x[i]);
+                heightDiff = facetElevation - subsurfColumns.at(facetj).at(i).getSurfaceElevation();
+                horDistanceDiff = fabs(x.at(facetj) - x.at(i));
                 angleBetweenFacets = heightDiff / horDistanceDiff;
 
                 if (angleBetweenFacets > tan( (90 - solarZenithAngle) / 180 * M_PI )) {
@@ -312,14 +318,14 @@ void Grid::printSurface(int index){
                 xFile.open(xFileName, std::ios_base::out);
                 yFile.open(yFileName, std::ios_base::out);
                 for (int i = 0; i < gridSize; i++) {
-                        xFile << x[i] << ",";
-                        yFile << y[i] << ",";
+                        xFile << x.at(i) << ",";
+                        yFile << y.at(i) << ",";
                 }
         }
 
         for (int i = 0; i < gridSize; i++) {
                 for (int j = 0; j < gridSize; j++) {
-                        elevationFile << subsurfColumns[i][j].getSurfaceElevation() << ",";
+                        elevationFile << subsurfColumns.at(j).at(i).getSurfaceElevation() << ",";
                 }
                 elevationFile << "\n";
         }
@@ -341,14 +347,14 @@ void Grid::printShadow(int index){
                 xFile.open(xFileName, std::ios_base::out);
                 yFile.open(yFileName, std::ios_base::out);
                 for (int i = 0; i < gridSize; i++) {
-                        xFile << x[i] << ",";
-                        yFile << y[i] << ",";
+                        xFile << x.at(i) << ",";
+                        yFile << y.at(i) << ",";
                 }
         }
 
         for (int i = 0; i < gridSize; i++) {
                 for (int j = 0; j < gridSize; j++) {
-                        shadowFile << subsurfColumns[i][j].isPermShadow << ",";
+                        shadowFile << subsurfColumns.at(j).at(i).isPermShadow << ",";
                 }
                 shadowFile << "\n";
         }
@@ -365,7 +371,7 @@ void Grid::printGrid(int index){
 
         for (size_t i = 0; i < subsurfColumns.size(); i++) {
                 for (size_t j = 0; j < subsurfColumns.size(); j++) {
-                        SubsurfColumn col = subsurfColumns[i][j];
+                        SubsurfColumn col = subsurfColumns.at(j).at(i);
                         // Prepare dummy layer whose first element is the number of layers in
                         // column and second element is the surface elevation.
                         Layer dummyLayer = Layer(col.subsurfLayers.size(), col.getSurfaceElevation());
