@@ -1,56 +1,61 @@
-2020-11-27_17:56:18	Log created successfully.
-2020-11-27_17:56:18	Initializing config file
-2020-11-27_17:56:18	Getting variable regionWidth with value 1000.000000.
-2020-11-27_17:56:18	Getting variable resolution with value 2.000000.
-2020-11-27_17:56:18	Getting variable endTime with value 500.000000.
-2020-11-27_17:56:18	Getting variable printTimeStep with value 100.000000.
-2020-11-27_17:56:18	Getting variable initialThickness with value 2000.000000.
-2020-11-27_17:56:18	Getting variable latitude with value 80.000000.
-2020-11-27_17:56:18	Getting variable isEmplaceEjecta with value 1.000000.
-2020-11-27_17:56:18	Getting variable isEmplaceSecondaries with value 0.000000.
-2020-11-27_17:56:18	Getting variable runTests with value 0.000000.
-2020-11-27_17:56:18	Getting variable isProduceMelt with value 1.000000.
-2020-11-27_17:56:18	Getting variable depthToDiameter with value 0.200000.
-2020-11-27_17:56:18	Getting variable rimToDiameter with value 0.040000.
-2020-11-27_17:56:18	Getting variable rimDropoffExponent with value 4.000000.
-2020-11-27_17:56:18	Getting variable numberOfZModelShells with value 100.000000.
-2020-11-27_17:56:18	Getting variable craterProfileType with value 2.000000.
-2020-11-27_17:56:18	Getting variable ejectaSpread with value 8.000000.
-2020-11-27_17:56:18	Getting variable slope_secondaries with value 4.000000.
-2020-11-27_17:56:18	Getting variable iceDensity with value 1000.000000.
-2020-11-27_17:56:18	Getting variable regolithDensity with value 3000.000000.
-2020-11-27_17:56:18	Getting variable c_ice with value 1.700000.
-2020-11-27_17:56:18	Getting variable c_regolith with value 3.950000.
-2020-11-27_17:56:18	Getting variable s_ice with value 1.440000.
-2020-11-27_17:56:18	Getting variable s_regolith with value 1.340000.
-2020-11-27_17:56:18	Getting variable meltEnergy with value 800000.000000.
-2020-11-27_17:56:18	Getting variable ice_fraction with value 0.500000.
-2020-11-27_17:56:18	Getting variable porosity with value 0.000000.
-2020-11-27_17:56:18	Getting variable temperature with value 150.000000.
-2020-11-27_17:56:18	Getting variable slope_b with value 2.520000.
-2020-11-27_17:56:18	Getting variable earthFluxRatioCoefficient with value 1.800000.
-2020-11-27_17:56:18	Getting variable minimumImpactorDiameter with value 0.500000.
-2020-11-27_17:56:18	Getting variable fluxConstant_c with value 0.000000.
-2020-11-27_17:56:18	Getting variable impactorDensity with value 2000.000000.
-2020-11-27_17:56:18	Getting variable meanImpactVelocity with value 17500.000000.
-2020-11-27_17:56:18	Getting variable impactAngle with value 45.000000.
-2020-11-27_17:56:18	Getting variable g with value 3.500000.
-2020-11-27_17:56:18	Getting variable k1 with value 0.200000.
-2020-11-27_17:56:18	Getting variable Ybar with value 10000.000000.
-2020-11-27_17:56:18	Getting variable mu with value 0.410000.
-2020-11-27_17:56:18	Getting variable targetDensity with value 1500.000000.
-2020-11-27_17:56:18	Creating histogram with minimum bin value 5.000000 and maximum bin value 1000.000000 and size 20
-2020-11-27_17:56:18	Creating histogram with minimum bin value 0.500000 and maximum bin value 10000.000000 and size 20
-2020-11-27_17:56:18	Creating histogram with minimum bin value 0.500000 and maximum bin value 10000.000000 and size 20
-2020-11-27_17:56:18	Starting simulation:
-2020-11-27_17:56:18	Number of craters in simulation: 344.
-2020-11-27_17:56:18	Progress: 0.00%.
-2020-11-27_17:56:20	Progress: 20.06%.
-2020-11-27_17:56:22	Progress: 40.12%.
-2020-11-27_17:56:25	Progress: 60.17%.
-2020-11-27_17:56:26	Progress: 80.23%.
-2020-11-27_17:56:28	Printing crater histogram file.
-2020-11-27_17:56:28	Histogram file successfully created in path ./output/craters_histogram.txt.
-2020-11-27_17:56:28	Histogram file successfully created in path ./output/impactor_histogram.txt.
-2020-11-27_17:56:28	Histogram file successfully created in path ./output/depth_histogram.txt.
-2020-11-27_17:56:29	Simulation has ended.
+2020-11-30_14:09:34	Log created successfully.
+2020-11-30_14:09:34	Initializing config file
+2020-11-30_14:09:34	Getting variable regionWidth with value 10000.000000.
+2020-11-30_14:09:34	Getting variable resolution with value 20.000000.
+2020-11-30_14:09:34	Getting variable endTime with value 1000.000000.
+2020-11-30_14:09:34	Getting variable printTimeStep with value 100.000000.
+2020-11-30_14:09:34	Getting variable initialThickness with value 2000.000000.
+2020-11-30_14:09:34	Getting variable latitude with value 80.000000.
+2020-11-30_14:09:34	Getting variable isEmplaceEjecta with value 1.000000.
+2020-11-30_14:09:34	Getting variable isEmplaceSecondaries with value 0.000000.
+2020-11-30_14:09:34	Getting variable runTests with value 0.000000.
+2020-11-30_14:09:34	Getting variable isProduceMelt with value 1.000000.
+2020-11-30_14:09:34	Getting variable depthToDiameter with value 0.200000.
+2020-11-30_14:09:34	Getting variable rimToDiameter with value 0.040000.
+2020-11-30_14:09:34	Getting variable rimDropoffExponent with value 4.000000.
+2020-11-30_14:09:34	Getting variable numberOfZModelShells with value 100.000000.
+2020-11-30_14:09:34	Getting variable craterProfileType with value 2.000000.
+2020-11-30_14:09:34	Getting variable ejectaSpread with value 8.000000.
+2020-11-30_14:09:34	Getting variable slope_secondaries with value 4.000000.
+2020-11-30_14:09:34	Getting variable iceDensity with value 1000.000000.
+2020-11-30_14:09:34	Getting variable regolithDensity with value 3000.000000.
+2020-11-30_14:09:34	Getting variable c_ice with value 1.700000.
+2020-11-30_14:09:34	Getting variable c_regolith with value 3.950000.
+2020-11-30_14:09:34	Getting variable s_ice with value 1.440000.
+2020-11-30_14:09:34	Getting variable s_regolith with value 1.340000.
+2020-11-30_14:09:34	Getting variable meltEnergy with value 800000.000000.
+2020-11-30_14:09:34	Getting variable ice_fraction with value 0.500000.
+2020-11-30_14:09:34	Getting variable porosity with value 0.000000.
+2020-11-30_14:09:34	Getting variable temperature with value 150.000000.
+2020-11-30_14:09:34	Getting variable slope_b with value 2.520000.
+2020-11-30_14:09:34	Getting variable earthFluxRatioCoefficient with value 1.800000.
+2020-11-30_14:09:34	Getting variable minimumImpactorDiameter with value 0.500000.
+2020-11-30_14:09:34	Getting variable fluxConstant_c with value 0.000000.
+2020-11-30_14:09:34	Getting variable impactorDensity with value 2000.000000.
+2020-11-30_14:09:34	Getting variable meanImpactVelocity with value 17500.000000.
+2020-11-30_14:09:34	Getting variable impactAngle with value 45.000000.
+2020-11-30_14:09:34	Getting variable g with value 3.500000.
+2020-11-30_14:09:34	Getting variable k1 with value 0.200000.
+2020-11-30_14:09:34	Getting variable Ybar with value 10000.000000.
+2020-11-30_14:09:34	Getting variable mu with value 0.410000.
+2020-11-30_14:09:34	Getting variable targetDensity with value 1500.000000.
+2020-11-30_14:09:34	Creating histogram with minimum bin value 5.000000 and maximum bin value 10000.000000 and size 20
+2020-11-30_14:09:34	Creating histogram with minimum bin value 0.500000 and maximum bin value 10000.000000 and size 20
+2020-11-30_14:09:34	Creating histogram with minimum bin value 0.500000 and maximum bin value 10000.000000 and size 20
+2020-11-30_14:09:34	Starting simulation:
+2020-11-30_14:09:34	Number of craters in simulation: 68762.
+2020-11-30_14:09:35	Progress: 0.00%.
+2020-11-30_14:09:36	Progress: 10.00%.
+2020-11-30_14:09:38	Progress: 20.00%.
+2020-11-30_14:09:40	Progress: 30.00%.
+2020-11-30_14:09:41	Progress: 40.00%.
+2020-11-30_14:09:43	Progress: 50.01%.
+2020-11-30_14:09:44	Progress: 60.01%.
+2020-11-30_14:09:46	Progress: 70.01%.
+2020-11-30_14:09:48	Progress: 80.01%.
+2020-11-30_14:09:50	Progress: 90.01%.
+2020-11-30_14:09:51	Printing crater histogram file.
+2020-11-30_14:09:51	Histogram file successfully created in path ./output/craters_histogram.txt.
+2020-11-30_14:09:51	Histogram file successfully created in path ./output/impactor_histogram.txt.
+2020-11-30_14:09:51	Histogram file successfully created in path ./output/depth_histogram.txt.
+2020-11-30_14:09:52	Simulation has ended.

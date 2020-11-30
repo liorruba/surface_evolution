@@ -93,7 +93,6 @@ void Grid::formCrater(Crater &crater){
                                         // std::cout << craterProfile << std::endl;
                                         // std::cout << crater.meltHeight - crater.rimHeight << std::endl;
                                         if (craterProfile > crater.meltHeight - crater.rimHeight) {
-                                                std::cout << crater.meltHeight - crater.rimHeight << std::endl;
                                                 craterProfile = crater.meltHeight - crater.rimHeight;
                                         }
                                 }
@@ -308,7 +307,12 @@ void Grid::printSurface(int index){
         std::ofstream yFile;
         std::ofstream elevationFile;
 
-        std::string elevationFileName = "./output/elevation_" + std::to_string(index) + ".txt";
+        std::string index_str = std::string(
+                std::to_string(int(endTime / printTimeStep)).length() -
+                std::to_string(index).length(), '0'
+                ) + std::to_string(index);
+
+        std::string elevationFileName = "./output/elevation_" + index_str + ".txt";
         elevationFile.open(elevationFileName, std::ios_base::out);
 
         if (index == 0) {
