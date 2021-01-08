@@ -7,7 +7,7 @@ and adds an efficient 3-D description of the subsurface using layers.
 1. Install [Boost](https://www.boost.org/) > 1.72.
 2. To compile, simply run `make` in the `REGOLIT` directory
 3. To run, execute `./build/apps/regolit_main.run`
-4. The output will saved in the `output` directory: an ascii matrix of surface elevation (see animation below). The layers are saved in a binary file that can be read using the attached Matlab script.
+4. The output will be saved in the `output` directory: an ascii matrix of surface elevation (see animation below). The layers are saved in a binary file that can be read using the attached Matlab script.
 
 ### An example topography evolution simulation:
 ![Surface evolution](https://github.com/liorruba/surface_evolution/blob/master/craters.gif)
