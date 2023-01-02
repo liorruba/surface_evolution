@@ -1,10 +1,3 @@
-// Structs
-// A quick map to store variables:
-typedef struct {
-        std::string name;
-        double value;
-} var;
-
 // Globals
 // Simulation parameters:
 extern double regionWidth; // km
@@ -16,7 +9,6 @@ extern double latitude; // Latitude (for shadow calculation)
 extern bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive.
 extern bool isEmplaceSecondaries; // Should emplace secondaries? Computationally extensive.
 extern bool runTests; // Run tests?
-extern bool isProduceMelt; // Should produce melt?
 
 // Crater formation variables:
 extern double depthToDiameter; // Dimensionless ratio
@@ -32,7 +24,6 @@ extern double c_ice; // The speed of sound in ice
 extern double c_regolith; // The speed of sound in regolith
 extern double s_ice; // slope of the shock / particle velocity relation (ice)
 extern double s_regolith; // slope of the shock / particle velocity relation (regolith)
-extern double meltEnergy; // The melt energy coefficient (Kraus et al., 2011, 3.1.2)
 extern double ice_fraction; // The fraction of ice in the regolith-ice mixture
 extern double porosity; // The impact target porosity
 extern double temperature; // The subsurface constant temperature
@@ -65,12 +56,6 @@ extern double Ki_a;
 extern double Ki_b;
 extern double Ki_c;
 extern double Ki_d;
-
-// Read config file:
-std::vector<var> readConfig();
-
-// Get variable from list:
-// double setVariable(vector<var> varList, char * varName);
 
 ////////////////
 // START MAIN //

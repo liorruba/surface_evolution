@@ -6,11 +6,12 @@
 #include <cstdlib>
 #include <cmath>
 #include <cctype>
+#include <string>
 #include <cstring>
 #include <ctime>
 #include <sstream>
 #include <fstream>
-#include <string>
+#include <filesystem>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/types.h>
@@ -26,7 +27,6 @@
 #include "../include/crater.hpp"
 #include "../include/subsurf_column.hpp"
 #include "../include/grid.hpp"
-#include "../include/utility.hpp"
 #include "../include/tests.hpp"
 
 //////////////////////////////
@@ -38,11 +38,10 @@ double resolution; // 1/km
 double endTime; // Ma
 double printTimeStep; // Time step for printing data in Ma.
 double initialThickness; // Initial thickness of subsurface layer.
-double latitude; // Latitude (for shadow calculation)
+double latitude; // Latitude (for shadow calculation; in development)
 bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive.
 bool isEmplaceSecondaries; // Should emplace ejecta? Computationally extensive.
 bool runTests; // Should emplace ejecta? Computationally extensive.
-bool isProduceMelt; // Should produce melt?
 
 // Crater formation variables:
 double depthToDiameter; // Dimensionless ratio, crater depth to diameter
@@ -58,7 +57,6 @@ double c_ice; // The speed of sound in ice
 double c_regolith; // The speed of sound in regolith
 double s_ice; // slope of the shock / particle velocity relation (ice)
 double s_regolith; // slope of the shock / particle velocity relation (regolith)
-double meltEnergy; // The melt energy coefficient (Kraus et al., 2011, 3.1.2)
 double ice_fraction; // The fraction of ice in the regolith-ice mixture
 double porosity; // The impact target porosity
 double temperature; // The subsurface constant temperature
@@ -91,72 +89,29 @@ double Ki_b;
 double Ki_c;
 double Ki_d;
 
-/////////////
-//Functions//
-/////////////
-// Read config file:
-std::vector<var> readConfig(){
-        std::ifstream configFile;
-        configFile.open("./config/config.cfg");
-        std::vector<var> varList; // A varlist vector to store variables.
-        var tempVar; // Temporary var struct used as buffer.
-        addLogEntry("Initializing config file");
-
-        if (!configFile) {
-                addLogEntry("Cannot read config file.");
-                exit(EXIT_FAILURE);
-        }
-
-        // Count how many variables in config file:
-        std::string line;
-        while (std::getline(configFile, line)) {
-                // Check if line is commented out:
-                if (line[0] == '/' && line[1] == '/')
-                        continue;
-
-                // Check if line is empty:
-                if (line.empty())
-                        continue;
-
-                std::istringstream iss(line);
-                std::string name; double value;
-                if (!(iss >> name >> value)) {
-                        addLogEntry("Cannot read variable from config file.");
-                        exit(EXIT_FAILURE);
-                }
-
-                tempVar.name = name;
-                tempVar.value = value;
-                varList.push_back(tempVar);
-        }
-
-        return varList;
-}
-
-// Get variable from list:
-double setVariable(std::vector<var> varList, std::string varName){
-        size_t i;
-
-        for (i = 0; i < varList.size(); i++) {
-                if (varList[i].name == varName) {
-                        char logEntry[100];
-                        sprintf(logEntry, "Getting variable %s with value %f.", varList[i].name.c_str(), varList[i].value);
-                        addLogEntry(logEntry);
-                        return varList[i].value;
-                }
-        }
-// If variable was not found:
-        return -1;
-}
-
 ////////////////
 // START MAIN //
 ////////////////
 int main() {
-        // Prepare directories:
+        std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << "******************************************************************************" << std::endl;
+        std::cout << "******************************************************************************" << std::endl;
+        std::cout << "**                                                                          **" << std::endl;
+        std::cout << "** REGOLIT: REworking and Gardening Of Lunar Impacted Terrains. Version 1.0 **" << std::endl;
+        std::cout << "**                                                                          **" << std::endl;
+        std::cout << "******************************************************************************" << std::endl;
+        std::cout << "******************************************************************************" << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+        // Prepare directories; create if needed:
+        std::cout << "Creating output directory." << std::endl;
         DIR * outputdir = opendir("./output");
         if (outputdir) {
                 closedir(outputdir);
+                std::cout << "Clearing existing output." << std::endl;
+                std::filesystem::remove_all("./output/");
+                system("mkdir ./output");
         }
         else {
                 system("mkdir ./output");
@@ -165,15 +120,20 @@ int main() {
         DIR * logdir = opendir("./log");
         if (logdir) {
                 closedir(logdir);
+                std::cout << "Clearing existing logs." << std::endl;
+                std::filesystem::remove_all("./log/log.txt");
+                system("mkdir ./log");
         }
         else {
                 system("mkdir ./log");
         }
 
         // Create log:
+        std::cout << "Creating a new log file..." << std::endl;
         createLogFile("log/log.txt");
         // Read config:
         std::vector<var> varList = readConfig();
+        std::vector< std::vector<double> > initLayersList = readLayers();
 
         // Set variables from parameters:
         // Simulation variables:
@@ -186,7 +146,6 @@ int main() {
         isEmplaceEjecta = setVariable(varList, "isEmplaceEjecta");
         isEmplaceSecondaries = setVariable(varList, "isEmplaceSecondaries");
         runTests = setVariable(varList, "runTests");
-        isProduceMelt = setVariable(varList, "isProduceMelt");
 
         // Crater formation variables:
         depthToDiameter = setVariable(varList, "depthToDiameter");
@@ -202,7 +161,6 @@ int main() {
         c_regolith = setVariable(varList, "c_regolith");
         s_ice = setVariable(varList, "s_ice");
         s_regolith = setVariable(varList, "s_regolith");
-        meltEnergy = setVariable(varList, "meltEnergy");
         ice_fraction = setVariable(varList, "ice_fraction");
         porosity = setVariable(varList, "porosity");
         temperature = setVariable(varList, "temperature");
@@ -224,18 +182,18 @@ int main() {
         targetDensity = setVariable(varList, "targetDensity");
 
         // Initialize the random number generator seed:
-        srand48((long) get_time());
+        srand48(2);
 
         ///////////////
         // Run tests //
         ///////////////
         if (runTests) {
+                addLogEntry("Running unit tests...", true);
                 // If tests did not pass:
                 if (tests())
-                        std::cout << "All tests passed successfully." << std::endl;
+                        addLogEntry("All tests passed successfully.", true);
                 else
-                        std::cout << "Not all tests passed successfully." << std::endl;
-
+                        addLogEntry("Not all tests passed successfully. Terminating.", true);
                 return 0;
         }
 
@@ -252,16 +210,21 @@ int main() {
         // Simulation parameters  //
         ////////////////////////////
         // Generate grid:
-        Grid grid = Grid();
+        Grid grid = Grid(initLayersList);
 
         // Total number of craters to be created:
+        addLogEntry("Calculating number of caters to be created...", true);
         long totalNumberOfImpactors = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * endTime * grid.area * earthFluxRatioCoefficient); // total number of impactors to generate larger than minimumDiameter: N/At = cD^-b.
         long numberOfCratersInTimestep = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * printTimeStep * grid.area * earthFluxRatioCoefficient); // number of impactors to generate larger than minimumDiameter: N/At = cD^-b in some time interval.
 
-        // Throw a warning if totalNumberOfImpactors is too high. If the memory
-        // taken by the craters exceeds 1 GB, throw a memory warning:
+        char logEntry[50];
+        sprintf(logEntry, "Number of craters in simulation: %ld.", totalNumberOfImpactors);
+        addLogEntry(logEntry, true);
+
+        // Show warning if totalNumberOfImpactors is too high. 
+        // If the memory taken by the craters exceeds 1 GB, throw a memory warning:
         if (sizeof(Crater) * totalNumberOfImpactors > 1e9)
-                std::cout << "WARNING: memory taken by craters exceeds 1 GB" << std::endl;
+                addLogEntry("WARNING: memory taken by craters exceeds 1 GB", true);
 
         // Craters and impactors histograms:
         Histogram cratersHistogram(minimumImpactorDiameter * 10, regionWidth, 20); // Crater histogram from 10*minimumImpactorDiameter to regionWidth meters
@@ -271,12 +234,9 @@ int main() {
         //////////////////////
         // Start simulation //
         //////////////////////
-        addLogEntry("Starting simulation:");
-        char logEntry[50];
-        sprintf(logEntry, "Number of craters in simulation: %ld.", totalNumberOfImpactors);
-        addLogEntry(logEntry);
+        addLogEntry("Starting simulation...", true);
 
-        for (long i = 0; i < totalNumberOfImpactors; i++) {
+        for (long i = 0; i < totalNumberOfImpactors; ++i) {
                 // Randomize a new impactor:
                 Impactor impactor;
 
@@ -288,72 +248,89 @@ int main() {
                 cratersHistogram.add(2 * crater.finalRadius);
 
                 // Form a crater on the grid:
-                grid.formCrater(crater);
+                if (crater.finalRadius > 0) {           
+                        grid.formCrater(crater);
 
-                if (crater.finalRadius > 2 * resolution && isEmplaceEjecta) {
-                        grid.emplaceEjecta(crater);
-                }
-
-                // "Ghost" craters:
-                // If the crater exceeds the grid, wrap around it by creating a ghost crater.
-                // If a corner:
-                if ( (fabs(crater.xLocation) > regionWidth/2 - crater.finalRadius) && (fabs(crater.yLocation) > regionWidth/2 - crater.finalRadius) ) {
-                        // Calculate ghost crater location as sgn(x) * (region_width - x);
-                        xGhost = (-crater.xLocation/fabs(crater.xLocation)) * (regionWidth - crater.xLocation * (crater.xLocation/fabs(crater.xLocation)));
-                        yGhost = (-crater.yLocation/fabs(crater.yLocation)) * (regionWidth - crater.yLocation * (crater.yLocation/fabs(crater.yLocation)));
-                        Crater ghost1 = Crater(impactor, xGhost, yGhost);
-                        Crater ghost2 = Crater(impactor, xGhost, crater.yLocation);
-                        Crater ghost3 = Crater(impactor, crater.xLocation, yGhost);
-                        grid.formCrater(ghost1);
-                        grid.emplaceEjecta(ghost1);
-                        grid.formCrater(ghost2);
-                        grid.emplaceEjecta(ghost2);
-                        grid.formCrater(ghost3);
-                        grid.emplaceEjecta(ghost3);
-                }
-
-                // If a side:
-                if ( (fabs(crater.xLocation) > regionWidth/2 - crater.finalRadius/2) && (fabs(crater.yLocation) < regionWidth/2 - crater.finalRadius/2)) {
-                        // Calculate ghost crater location as sgn(x) * (region_width - x);
-                        xGhost = (-crater.xLocation/fabs(crater.xLocation)) * (regionWidth - crater.xLocation * (crater.xLocation/fabs(crater.xLocation)));
-                        Crater ghost2 = Crater(impactor, xGhost, crater.yLocation);
-
-                        // Create one ghost crater:
-                        grid.formCrater(ghost2);
-                        grid.emplaceEjecta(ghost2);
-                }
-
-                // If another side:
-                if ( (fabs(crater.xLocation) < regionWidth/2 - crater.finalRadius/2) && (fabs(crater.yLocation) > regionWidth/2 - crater.finalRadius/2)) {
-                        // Calculate ghost crater location as sgn(x) * (region_width - x);
-                        yGhost = (-crater.yLocation/fabs(crater.yLocation)) * (regionWidth - crater.yLocation * (crater.yLocation/fabs(crater.yLocation)));
-                        Crater ghost3 = Crater(impactor, crater.xLocation, yGhost);
-
-                        // Create one ghost crater:
-                        grid.formCrater(ghost3);
-                        grid.emplaceEjecta(ghost3);
-                }
-
-                // Secondary craters:
-                if (isEmplaceSecondaries) {
-                        // Form a secondary crater within 2 crater diameters from the primary:
-                        if (crater.numberOfSecondaries > 0) {
-                                char logEntry[50];
-                                sprintf(logEntry, "Primary diameter: %f. Number of secondaries: %d.", 2*crater.finalRadius, crater.numberOfSecondaries);
-                                addLogEntry(logEntry);
+                        if (isEmplaceEjecta && !crater.ejectedMass.isEmpty()) {
+                                grid.emplaceEjecta(crater);
                         }
-                        for (long j = 0; j < crater.numberOfSecondaries; j++) {
-                                double secondaryxLocation = randU(crater.xLocation - 4 * crater.finalRadius, crater.xLocation + 4 * crater.finalRadius);
-                                double secondaryyLocation = randU(crater.yLocation - 4 * crater.finalRadius, crater.yLocation + 4 * crater.finalRadius);
-                                double secondaryRadius = resolution * pow(randU(0,1), -1/slope_secondaries); // Set impactor radius from the cumulative distribution, meters
-                                Crater secondaryCrater(secondaryxLocation, secondaryyLocation, secondaryRadius);
-                                grid.formCrater(secondaryCrater);
+                
+                        // "Ghost" craters:
+                        // If the crater exceeds the grid, wrap around it by creating a ghost crater.
+                        // If a corner:
+                        if ( (fabs(crater.xLocation) > regionWidth/2 - crater.finalRadius) && (fabs(crater.yLocation) > regionWidth/2 - crater.finalRadius) ) {
+                                // Calculate ghost crater location as sgn(x) * (region_width - x);
+                                xGhost = (-crater.xLocation/fabs(crater.xLocation)) * (regionWidth - crater.xLocation * (crater.xLocation/fabs(crater.xLocation)));
+                                yGhost = (-crater.yLocation/fabs(crater.yLocation)) * (regionWidth - crater.yLocation * (crater.yLocation/fabs(crater.yLocation)));
+                                Crater ghost1 = Crater(impactor, xGhost, yGhost, crater.ejectedMass);
+                                Crater ghost2 = Crater(impactor, xGhost, crater.yLocation, crater.ejectedMass);
+                                Crater ghost3 = Crater(impactor, crater.xLocation, yGhost, crater.ejectedMass);
+
+                                grid.formCrater(ghost1);
+                                if (isEmplaceEjecta && !ghost1.ejectedMass.isEmpty()) {
+                                        grid.emplaceEjecta(ghost1);
+                                }
+
+                                grid.formCrater(ghost2);
+                                if (isEmplaceEjecta && !ghost2.ejectedMass.isEmpty()) {
+                                        grid.emplaceEjecta(ghost2);
+                                }
+
+                                grid.formCrater(ghost3);
+                                if (isEmplaceEjecta && !ghost3.ejectedMass.isEmpty()) {
+                                        grid.emplaceEjecta(ghost3);
+                                }
+                                
+                        }
+
+                        // If a side:
+                        if ( (fabs(crater.xLocation) > regionWidth/2 - crater.finalRadius/2) && (fabs(crater.yLocation) < regionWidth/2 - crater.finalRadius/2)) {
+                                // Calculate ghost crater location as sgn(x) * (region_width - x);
+                                xGhost = (-crater.xLocation/fabs(crater.xLocation)) * (regionWidth - crater.xLocation * (crater.xLocation/fabs(crater.xLocation)));
+                                Crater ghost2 = Crater(impactor, xGhost, crater.yLocation, crater.ejectedMass);
+
+                                // Create one ghost crater:
+                                grid.formCrater(ghost2);
+                                if (isEmplaceEjecta && !ghost2.ejectedMass.isEmpty()) {
+                                        grid.emplaceEjecta(ghost2);
+                                }
+                        }
+
+                        // If another side:
+                        if ( (fabs(crater.xLocation) < regionWidth/2 - crater.finalRadius/2) && (fabs(crater.yLocation) > regionWidth/2 - crater.finalRadius/2)) {
+                                // Calculate ghost crater location as sgn(x) * (region_width - x);
+                                yGhost = (-crater.yLocation/fabs(crater.yLocation)) * (regionWidth - crater.yLocation * (crater.yLocation/fabs(crater.yLocation)));
+                                Crater ghost3 = Crater(impactor, crater.xLocation, yGhost, crater.ejectedMass);
+
+                                // Create one ghost crater:
+                                grid.formCrater(ghost3);
+                                if (isEmplaceEjecta && !ghost3.ejectedMass.isEmpty()) {
+                                        grid.emplaceEjecta(ghost3);
+                                }
+                        }
+
+                        // Secondary craters:
+                        if (isEmplaceSecondaries) {
+                                // Form a secondary crater within 2 crater diameters from the primary:
+                                if (crater.numberOfSecondaries > 0) {
+                                        char logEntry[50];
+                                        sprintf(logEntry, "Primary diameter: %f. Number of secondaries: %d.", 2*crater.finalRadius, crater.numberOfSecondaries);
+                                        addLogEntry(logEntry, true);
+                                }
+                                for (long j = 0; j < crater.numberOfSecondaries; j++) {
+                                        double secondaryxLocation = randU(crater.xLocation - 4 * crater.finalRadius, crater.xLocation + 4 * crater.finalRadius);
+                                        double secondaryyLocation = randU(crater.yLocation - 4 * crater.finalRadius, crater.yLocation + 4 * crater.finalRadius);
+                                        double secondaryRadius = resolution * pow(randU(0,1), -1/slope_secondaries); // Set impactor radius from the cumulative distribution, meters
+                                        Crater secondaryCrater(secondaryxLocation, secondaryyLocation, secondaryRadius);
+                                        grid.formCrater(secondaryCrater);
+                                }
                         }
                 }
-
                 // // Update crater depths, after topography has changed:
                 // grid.updateExistingCratersDepth(crater);
                 // cratersDepthHistogram.add(crater.finalDepth);
+
+                progressBar(i, totalNumberOfImpactors);
 
                 // Print progress to a file:
                 if (i%numberOfCratersInTimestep == 0) {
@@ -363,18 +340,19 @@ int main() {
                         // Print to log:
                         char logEntry[100];
                         sprintf(logEntry, "Progress: %0.2f%%.",(double) i/(double) totalNumberOfImpactors * 100);
-                        addLogEntry(logEntry);
+                        addLogEntry(logEntry, false);
                         printIndex++;
                 }
 
         }
         // Print craters histogram to file:
-        addLogEntry("Printing crater histogram file.");
+        addLogEntry("Finished running. Saving histograms and data.", true);
+        addLogEntry("Printing crater histogram file.", true);
         cratersHistogram.print("./output/craters_histogram.txt");
         impactorsHistogram.print("./output/impactor_histogram.txt");
         cratersDepthHistogram.print("./output/depth_histogram.txt");
         grid.printSurface(0);
         grid.printGrid(0);
 
-        addLogEntry("Simulation has ended.");
+        addLogEntry("Simulation has ended.", true);
 }

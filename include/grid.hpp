@@ -2,7 +2,6 @@
 
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/point.hpp>
-// #include <boost/geometry/index/indexable.hpp>
 #include <boost/geometry/index/rtree.hpp>
 
 // This class defines the surface properties:
@@ -55,7 +54,7 @@ std::vector<double> x;
 std::vector<double> y;
 std::vector< std::vector<SubsurfColumn> > subsurfColumns;
 
-Grid();
+Grid(std::vector< std::vector<double> > _initLayersList);
 void formCrater(Crater &crater);
 void emplaceEjecta(Crater &crater);
 void printSurface(int index);
@@ -73,7 +72,9 @@ double craterParabolicDepthProfile(double craterRadius, double distanceFromCrate
 double craterSphericalDepthProfile(double craterRadius, double distanceFromCraterCenter, double normAngle);
 double rimHeight(double craterRadius, double distanceFromCraterCenter);
 double getSurfaceElevationAtPoint(double x, double y);
-double calculateSlope(const Crater crater);
+std::tuple<double, double> calculateSlope(const Crater crater);
+std::vector< std::vector<double> > initLayersList;
+
 std::vector< std::vector<SubsurfColumn> > initializeSubsurface();
 std::map<size_t, Crater *> cratersDict;
 

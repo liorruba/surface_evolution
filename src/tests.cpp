@@ -8,6 +8,7 @@
 #include "../include/impactor.hpp"
 #include "../include/crater.hpp"
 #include "../include/grid.hpp"
+#include "../include/utility.hpp"
 
 bool tests() {
         bool all_test_passed = 1;
@@ -137,7 +138,10 @@ bool tests() {
         ///////////////////////////
         // TEST GRID + SHADOWING //
         ///////////////////////////
-        Grid testGrid = Grid();
+        std::vector<var> varList = readConfig();
+        std::vector< std::vector<double> > initLayersList = readLayers();
+
+        Grid testGrid = Grid(initLayersList);
         Crater ctr = Crater(0, 0, 100);
         testGrid.formCrater(ctr);
         testGrid.printSurface(0);

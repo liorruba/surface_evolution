@@ -26,18 +26,49 @@
 namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;
 
-// A constructor for the surface class. Creates a surface with (size * size) elements.
-Grid::Grid(){
+// A constructor for the grid class. Creates a grid with (size * size) elements.
+Grid::Grid(std::vector< std::vector<double> > _initLayersList){
         gridSize = regionWidth / resolution;
         x = linspace(-regionWidth/2, regionWidth/2, gridSize);
         y = linspace(-regionWidth/2, regionWidth/2, gridSize);
         area = pow(regionWidth, 2);
+        initLayersList = _initLayersList;
         subsurfColumns = initializeSubsurface();
 }
 
 // Initialize a matrix of columns (2d vector):
 std::vector< std::vector<SubsurfColumn> > Grid::initializeSubsurface(){
-        std::vector< std::vector<SubsurfColumn> > buffMat(gridSize,std::vector<SubsurfColumn>(gridSize));
+        addLogEntry("Generating grid...", true);
+        std::vector< std::vector<SubsurfColumn> > buffMat;
+        std::vector<SubsurfColumn> buffVec;     
+
+        std::vector< std::vector<double> >::iterator row;
+
+        // Create a buffer subsurface column, and populate it with the
+        // requested layers:
+        addLogEntry("Creating initial subsurface layering for a single column.", false);
+        SubsurfColumn buffCol = SubsurfColumn();
+        for (row = initLayersList.begin(); row != initLayersList.end(); ++row) {
+                buffCol.addLayer(Layer((*row)[0], (*row)[1], (*row)[2], (*row)[3]));
+        }
+        addLogEntry("Finished creating column.", false);
+        
+        char logEntry[200];
+        sprintf(logEntry, "Populating grid by duplicating column %dx%d times (this may take some time, depending on the grid size).", gridSize, gridSize);
+        addLogEntry(logEntry, false);
+
+        // Populate the grid with the buffer subsurface column:
+        for (int i = 0; i < gridSize; ++i){
+                for (int j = 0; j < gridSize; ++j){
+                        buffVec.push_back(buffCol);
+                }
+                buffMat.push_back(buffVec);
+
+                progressBar(i, gridSize);
+        }
+
+        addLogEntry("Finished creating grid.", true);
+
         return buffMat;
 }
 
@@ -45,7 +76,6 @@ std::vector< std::vector<SubsurfColumn> > Grid::initializeSubsurface(){
 void Grid::formCrater(Crater &crater){
         double distanceFromCraterCenter = 0; // For later use.
         double craterProfile = 0; // The maximum depth of the new cavity.
-
         double elevationAtCenter = getSurfaceElevationAtPoint(crater.xLocation, crater.yLocation);
 
         // Add crater to vector:
@@ -55,71 +85,112 @@ void Grid::formCrater(Crater &crater){
         craters_rtree.insert({cratersDict.size() - 1, {crater.xLocation, crater.yLocation}});
 
         // Find approximate inital i and j (up to 2R to include crater rim dropoff):
-        int iInit = floor( ((crater.xLocation + regionWidth/2) - ejectaSpread * crater.finalRadius) / resolution ); if(iInit < 0) iInit = 0;
-        int iFinal = ceil( ((crater.xLocation + regionWidth/2) + ejectaSpread * crater.finalRadius) / resolution ); if(iFinal > gridSize) iFinal = gridSize;
-        int jInit = floor( ((crater.yLocation + regionWidth/2) - ejectaSpread * crater.finalRadius) / resolution ); if(jInit < 0) jInit = 0;
-        int jFinal = ceil( ((crater.yLocation + regionWidth/2) + ejectaSpread * crater.finalRadius) / resolution ); if(jFinal > gridSize) jFinal = gridSize;
+        int iInit = floor( ((crater.xLocation + regionWidth/2) - ejectaSpread/2 * crater.finalRadius) / resolution ); 
+        int iFinal = ceil( ((crater.xLocation + regionWidth/2) + ejectaSpread/2 * crater.finalRadius) / resolution );
+        int jInit = floor( ((crater.yLocation + regionWidth/2) - ejectaSpread/2 * crater.finalRadius) / resolution );
+        int jFinal = ceil( ((crater.yLocation + regionWidth/2) + ejectaSpread/2 * crater.finalRadius) / resolution ); 
 
-        for (int i = iInit; i < iFinal; i++) {
-                for (int j = jInit; j < jFinal; j++) {
-                        distanceFromCraterCenter = sqrt(pow(x.at(i) - crater.xLocation, 2) + pow(y.at(j) - crater.yLocation, 2));
+        //////////
+        /// The next piece of code iterates over the subgrid radially outwards, to first compute
+        /// the material inside the crater for it to be emplaced in the ejecta
+        /// NOTE: Some of this code was written by OpenGPT! :-)
+        //////////
+        // Calculate the center of the subgrid
+        // int centerI = (iInit + iFinal) / 2;
+        // int centerJ = (jInit + jFinal) / 2;
 
-                        // if inside the crater:
-                        if (distanceFromCraterCenter <= crater.finalRadius) {
-                                if (craterProfileType == 1) {
-                                        if (isEmplaceEjecta) {
-                                                craterProfile = craterParabolicDepthProfile(crater.finalRadius, distanceFromCraterCenter, 0)
-                                                                - crater.rimHeight - linearInterp(crater.ejectaDistance, crater.ejectaThickness, crater.finalRadius);
-                                        }
-                                        else {
-                                                craterProfile = craterParabolicDepthProfile(crater.finalRadius, distanceFromCraterCenter, 0)
-                                                                - crater.rimHeight;
-                                        }
+        // Trim the grid edges
+        if(iInit < 0) iInit = 0;
+        if(iFinal > gridSize) iFinal = gridSize;
+        if(jInit < 0) jInit = 0;
+        if(jFinal > gridSize) jFinal = gridSize;
 
-                                }
-                                if (craterProfileType == 2) {
-                                        if (isEmplaceEjecta) {
-                                                craterProfile = craterSphericalDepthProfile(crater.finalRadius, distanceFromCraterCenter, 0)
-                                                                - crater.rimHeight - linearInterp(crater.ejectaDistance, crater.ejectaThickness, crater.finalRadius);
-                                        }
-                                        else {
-                                                craterProfile = craterSphericalDepthProfile(crater.finalRadius, distanceFromCraterCenter, 0)
-                                                                - crater.rimHeight;
-                                        }
-                                }
+        // Compute the slope the craters is formed on
+        // auto [craterSlope, craterAspect] = calculateSlope(crater);
 
-                                // Melt production
-                                if (isProduceMelt) {
-                                        // std::cout << craterProfile << std::endl;
-                                        // std::cout << crater.meltHeight - crater.rimHeight << std::endl;
-                                        if (craterProfile > crater.meltHeight - crater.rimHeight) {
-                                                craterProfile = crater.meltHeight - crater.rimHeight;
-                                        }
-                                }
+        // Create a vector of tuples containing the subgrid indexes (i, j) and their radial distances from the center
+        std::vector<std::tuple<int, int, double>> indexes;
+        
+        for (int i = iInit; i < iFinal; ++i) {
+            for (int j = jInit; j < jFinal; ++j) {
+                  
+                  // Calculate the radial distance from the center of the subgrid
+                  double radialDistance = sqrt(pow(x.at(i) - crater.xLocation, 2) + pow(y.at(j) - crater.yLocation, 2));
 
-                                craterProfile = elevationAtCenter - craterProfile;
-                                double leftToRemove = subsurfColumns.at(j).at(i).getSurfaceElevation() - craterProfile;
-
-                                // If the thickness of the materialToRemove is positive, remove material
-                                if (leftToRemove >= 0) {
-                                        crater.ejectedMass.consolidate(subsurfColumns.at(j).at(i).integrateColumnComposition(leftToRemove));
-                                        subsurfColumns.at(j).at(i).removeMaterial(leftToRemove);
-                                }
-                                // If the thickness of the materialToRemove is negative, add material
-                                else {
-                                        subsurfColumns.at(j).at(i).addLayer(Layer(fabs(leftToRemove),1,0,0));
-                                }
-                        }
-
-                        // If outside the crater, add rim dropoff
-                        if (distanceFromCraterCenter > crater.finalRadius) {
-                                double rimDropoff = crater.rimHeight * pow((distanceFromCraterCenter / crater.finalRadius), -rimDropoffExponent);
-
-                                // Add a layer of pure regolith (1,0,0) as the rim dropoff.
-                                subsurfColumns.at(j).at(i).addLayer(Layer(rimDropoff,1,0,0));
-                        }
+                  // Add the tuple to the vector
+                  indexes.emplace_back(i, j, radialDistance);
                 }
         }
+        
+        // Sort the vector of tuples by the radial distance
+        std::sort(indexes.begin(), indexes.end(), [](const std::tuple<int, int, double>& a, 
+                const std::tuple<int, int, double>& b) { return std::get<2>(a) < std::get<2>(b); });
+
+
+        // Loop over the sorted vector of tuples
+        for (const std::tuple<int, int, double>& index : indexes) {
+        // Extract the index variables from the tuple                
+                int i = std::get<0>(index);
+                int j = std::get<1>(index);
+                
+                distanceFromCraterCenter = sqrt(pow(x.at(i) - crater.xLocation, 2) + pow(y.at(j) - crater.yLocation, 2));
+
+                // if inside the crater:
+                if (distanceFromCraterCenter <= crater.finalRadius) {
+                        if (craterProfileType == 1) {
+                                if (isEmplaceEjecta) {
+                                        craterProfile = craterParabolicDepthProfile(crater.finalRadius, distanceFromCraterCenter, 0)
+                                                        - crater.rimHeight - linearInterp(crater.ejectaDistance, crater.ejectaThickness, crater.finalRadius);
+                                }
+                                else {
+                                        craterProfile = craterParabolicDepthProfile(crater.finalRadius, distanceFromCraterCenter, 0)
+                                                        - crater.rimHeight;
+                                }
+
+                        }
+                        if (craterProfileType == 2) {
+                                if (isEmplaceEjecta) {
+                                        craterProfile = craterSphericalDepthProfile(crater.finalRadius, distanceFromCraterCenter, 0)
+                                                        - crater.rimHeight - linearInterp(crater.ejectaDistance, crater.ejectaThickness, crater.finalRadius);
+                                }
+                                else {
+                                        craterProfile = craterSphericalDepthProfile(crater.finalRadius, distanceFromCraterCenter, 0)
+                                                        - crater.rimHeight;
+                                }
+                        }
+
+                        craterProfile = elevationAtCenter - craterProfile;
+
+                        double leftToRemove = subsurfColumns.at(j).at(i).getSurfaceElevation() - craterProfile;
+                        
+                        // std::cout << leftToRemove << " " << std::endl;
+                        // If the thickness of the material left to remove is positive, remove material
+                        if (leftToRemove > 0) {
+                                crater.ejectedMass.consolidate(subsurfColumns.at(j).at(i).integrateColumnComposition(leftToRemove));
+                                subsurfColumns.at(j).at(i).removeMaterial(leftToRemove);
+                        }
+                        // If the thickness of the left to remove is negative, add material
+                        else if (!crater.ejectedMass.isEmpty()) {
+                                subsurfColumns.at(j).at(i).addLayer(Layer(fabs(leftToRemove),
+                                        crater.ejectedMass.regolithFraction,
+                                        crater.ejectedMass.iceFraction,
+                                        crater.ejectedMass.sootFraction));
+                        }
+                        
+                }
+                
+                // If outside the crater, add rim dropoff
+                if ((distanceFromCraterCenter > crater.finalRadius) && (!crater.ejectedMass.isEmpty())) {
+                        double rimDropoff = crater.rimHeight * pow((distanceFromCraterCenter / crater.finalRadius), -rimDropoffExponent);
+                        subsurfColumns.at(j).at(i).addLayer(Layer(rimDropoff,
+                                crater.ejectedMass.regolithFraction,
+                                crater.ejectedMass.iceFraction,
+                                crater.ejectedMass.sootFraction));
+                }
+
+
+        }
+
         // Set crater formation elevation:
         crater.floorElevation = getSurfaceElevationAtPoint(crater.xLocation,
                                                            crater.yLocation);
@@ -135,14 +206,13 @@ void Grid::emplaceEjecta(Crater &crater){
         int jInit = floor( ((crater.yLocation + regionWidth/2) - ejectaSpread * crater.finalRadius) / resolution ); if(jInit < 0) jInit = 0;
         int jFinal = ceil( ((crater.yLocation + regionWidth/2) + ejectaSpread * crater.finalRadius) / resolution ); if(jFinal > gridSize) jFinal = gridSize;
 
-        for (int i = iInit; i < iFinal; i++) {
-                for (int j = jInit; j < jFinal; j++) {
+        for (int i = iInit; i < iFinal; ++i) {
+                for (int j = jInit; j < jFinal; ++j) {
                         distanceFromCraterCenter = sqrt(pow(x.at(i) - crater.xLocation, 2) + pow(y[j] - crater.yLocation, 2));
 
                         // if inside the ejecta blanket:
                         if (distanceFromCraterCenter <= ejectaSpread * crater.finalRadius && distanceFromCraterCenter > crater.finalRadius) {
                                 // Changes subsurface composition based on ejected mass.
-
                                 subsurfColumns.at(j).at(i).addLayer(
                                         Layer(linearInterp(crater.ejectaDistance, crater.ejectaThickness, distanceFromCraterCenter),
                                               crater.ejectedMass.regolithFraction,
@@ -227,25 +297,42 @@ void Grid::updateExistingCratersDepth(Crater &crater) {
         }
 }
 
-double Grid::calculateSlope(const Crater crater){
+// Compute the slope and aspect the crater will rest on:
+std::tuple<double, double> Grid::calculateSlope(const Crater crater){
         // Three points define a surface:
         double x1 = crater.xLocation;
         double y1 = crater.yLocation;
         double z1 = getSurfaceElevationAtPoint(x1, y1);
 
-        double x2 = crater.xLocation + crater.finalRadius;
-        double y2 = crater.yLocation - crater.finalRadius;
+        double x2 = crater.xLocation + 2 * crater.finalRadius;
+        double y2 = crater.yLocation - 2 * crater.finalRadius;
         double z2 = getSurfaceElevationAtPoint(x2, y2);
 
-        double x3 = crater.xLocation - crater.finalRadius;
-        double y3 = crater.yLocation - crater.finalRadius;
+        double x3 = crater.xLocation - 2 * crater.finalRadius;
+        double y3 = crater.yLocation - 2 * crater.finalRadius;
         double z3 = getSurfaceElevationAtPoint(x3, y3);
 
-        point3 v1(x1 - x3, y1 - y3, z1 - z3);
-        point3 v2(x1 - x2, y1 - y2, z1 - z2);
+        Eigen::Vector3d p1(x1, y1, z1);
+        Eigen::Vector3d p2(x2, y2, z2);
+        Eigen::Vector3d p3(x3, y3, z3);
 
-        point3 v3 = bg::cross_product(v1, v2);
-        return xyPlaneVecAngle(std::vector<double> {v3.get<0>(), v3.get<1>(), v3.get<2>()});
+        Eigen::Vector3d v1 = p2 - p1;
+        Eigen::Vector3d v2 = p3 - p1;
+
+        Eigen::Vector3d surfNormal = v1.cross(v2);
+        surfNormal.normalize();
+
+        Eigen::Vector3d up(0, 0, 1); 
+        Eigen::Vector3d east(1, 0, 0);
+
+        double slope = acos(surfNormal.dot(up)); 
+        double aspect = acos(surfNormal.dot(east));
+
+        // if slope > 90, wrap angle:
+        if (slope > (M_PI / 2)) {
+                slope = M_PI - slope;
+        }
+        return {slope, aspect};
 }
 
 ///////////////////
@@ -286,7 +373,7 @@ bool Grid::calculatePermanentShadow(int faceti, int facetj, double solarZenithAn
         double angleBetweenFacets;
         double facetElevation = subsurfColumns[facetj][faceti].getSurfaceElevation();
 
-        for (int i = faceti + 1; i < gridSize; i++) {
+        for (int i = faceti + 1; i < gridSize; ++i) {
                 heightDiff = facetElevation - subsurfColumns.at(facetj).at(i).getSurfaceElevation();
                 horDistanceDiff = fabs(x.at(facetj) - x.at(i));
                 angleBetweenFacets = heightDiff / horDistanceDiff;
@@ -321,14 +408,14 @@ void Grid::printSurface(int index){
                 std::string yFileName = "./output/y.txt";
                 xFile.open(xFileName, std::ios_base::out);
                 yFile.open(yFileName, std::ios_base::out);
-                for (int i = 0; i < gridSize; i++) {
+                for (int i = 0; i < gridSize; ++i) {
                         xFile << x.at(i) << ",";
                         yFile << y.at(i) << ",";
                 }
         }
 
-        for (int i = 0; i < gridSize; i++) {
-                for (int j = 0; j < gridSize; j++) {
+        for (int i = 0; i < gridSize; ++i) {
+                for (int j = 0; j < gridSize; ++j) {
                         elevationFile << subsurfColumns.at(j).at(i).getSurfaceElevation() << ",";
                 }
                 elevationFile << "\n";
@@ -356,8 +443,8 @@ void Grid::printShadow(int index){
                 }
         }
 
-        for (int i = 0; i < gridSize; i++) {
-                for (int j = 0; j < gridSize; j++) {
+        for (int i = 0; i < gridSize; ++i) {
+                for (int j = 0; j < gridSize; ++j) {
                         shadowFile << subsurfColumns.at(j).at(i).isPermShadow << ",";
                 }
                 shadowFile << "\n";
@@ -373,8 +460,8 @@ void Grid::printGrid(int index){
 
         outputFile.open(output_filename, std::ios_base::binary|std::ios_base::app);
 
-        for (size_t i = 0; i < subsurfColumns.size(); i++) {
-                for (size_t j = 0; j < subsurfColumns.size(); j++) {
+        for (size_t i = 0; i < subsurfColumns.size(); ++i) {
+                for (size_t j = 0; j < subsurfColumns.size(); ++j) {
                         SubsurfColumn col = subsurfColumns.at(j).at(i);
                         // Prepare dummy layer whose first element is the number of layers in
                         // column and second element is the surface elevation.
@@ -390,7 +477,7 @@ void Grid::printGrid(int index){
 
 // Print existing craters to histogram:
 void Grid::printExistingCratersToHistogram(double bins){
-        addLogEntry("Printing existing craters histrogram.");
+        addLogEntry("Printing craters histrogram.", false);
         Histogram hist(minimumImpactorDiameter * 10, regionWidth, bins);
 
         for (auto cm : cratersDict) {
@@ -403,7 +490,7 @@ void Grid::printExistingCratersToHistogram(double bins){
 
 // Print existing craters to histogram:
 void Grid::printExistingCraters(){
-        addLogEntry("Printing existing craters to file.");
+        addLogEntry("Printing craters to file.", false);
 
         std::ofstream craterFile;
 

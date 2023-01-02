@@ -1,3 +1,14 @@
+#include <alloca.h>
+#include<Eigen/Dense>
+#include <Eigen/Geometry>
+
+
+// A quick map to store variables:
+typedef struct {
+        std::string name;
+        double value;
+} var;
+
 // This file contains various functions to help manage the code.
 // Function to check if string is empty:
 int isEmpty(const char *s);
@@ -32,3 +43,15 @@ double xyPlaneVecAngle(std::vector<double> vec);
 
 // Round up to the nearest grid value
 int roundUp(int numToRound, int multiple);
+
+// Read config and layers files:
+std::vector<var> readConfig();
+std::vector< std::vector<double> > readLayers();
+double setVariable(std::vector<var> varList, std::string varName);
+
+// A simple progress bar
+void progressBar(long progress, long total);
+
+// Rotate vectors
+Eigen::Vector3d rotate_vector_y(Eigen::Vector3d v, double alpha);
+Eigen::Vector3d rotate_vector_z(Eigen::Vector3d v, double alpha);

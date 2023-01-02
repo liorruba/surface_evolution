@@ -1,11 +1,11 @@
 CXX      := -c++
-CXXFLAGS := -pedantic-errors -Wall -Wextra -Werror -std=c++11
+CXXFLAGS := -pedantic-errors -Wall -Wextra -Werror -std=c++17
 LDFLAGS  := -L/usr/lib -lstdc++ -lm
 BUILD    := ./build
 OBJ_DIR  := $(BUILD)/obj
 APP_DIR  := $(BUILD)/apps
 TARGET   := regolit_main.run
-INCLUDE  := -Iinclude/
+INCLUDE  := -I/usr/local/include/Eigen -Iinclude/
 SRC 	 := $(wildcard src/*.cpp)
 OBJECTS  := $(SRC:%.cpp=$(OBJ_DIR)/%.o)
 

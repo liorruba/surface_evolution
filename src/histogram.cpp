@@ -13,7 +13,7 @@
 Histogram::Histogram(double minBin, double maxBin, int numOfBins){
         char logEntry[100];
         sprintf(logEntry, "Creating histogram with minimum bin value %f and maximum bin value %f and size %d", minBin, maxBin, numOfBins);
-        addLogEntry(logEntry);
+        addLogEntry(logEntry, false);
 
         // calculate the exponent for the logvec function via change of base:
         double minBinExponent = log(minBin)/log(sqrt(2.0));
@@ -53,7 +53,7 @@ void Histogram::print(const char *path){
         if(histogramFile) {
                 char logEntry[100];
                 sprintf(logEntry, "Histogram file successfully created in path %s.",path);
-                addLogEntry(logEntry);
+                addLogEntry(logEntry, false);
 
                 for (size_t i = 0; i < bins.size(); i++) {
                         histogramFile << bins[i] << "\t" << counts[i] << std::endl;
@@ -63,6 +63,6 @@ void Histogram::print(const char *path){
         else {
                 char logEntry[100];
                 sprintf(logEntry, "Cannot create histogram file in path %s.",path);
-                addLogEntry(logEntry);
+                addLogEntry(logEntry, false);
         }
 }

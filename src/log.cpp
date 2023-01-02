@@ -12,16 +12,16 @@ void createLogFile(const char *path){
   std::ofstream logFile;
   logFile.open(path, std::ios_base::app);
   if(!logFile) {
-    printf("ERROR: Cannot create log file.");
+    std::cout << "ERROR: Cannot create log file." << std::endl;
     exit(EXIT_FAILURE);
   }
   else {
-    addLogEntry("Log created successfully.");
+    addLogEntry("Log created successfully.", false);
   }
 }
 
 // Add a new log entry
-void addLogEntry(const char *str){
+void addLogEntry(const char *str, bool dispOnScreen = false){
   std::ofstream logFile;
   // Logging variables:
   logFile.open("log/log.txt", std::ios_base::app); // Append to log file.
@@ -29,4 +29,6 @@ void addLogEntry(const char *str){
   // Logging variables:
   time_t now = time(nullptr);
   logFile << std::put_time(localtime(&now), "%F_%T") << "\t" << str << std::endl; // Write to log file.
+
+  if (dispOnScreen) std::cout << std::put_time(localtime(&now), "%F_%T") << "\t" << str << std::endl;
 }

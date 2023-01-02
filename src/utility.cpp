@@ -9,7 +9,14 @@
 #include<cinttypes>
 #include<vector>
 #include<fstream>
+#include<sstream>
 #include "../include/utility.hpp"
+#include "../include/log.hpp"
+
+#include<alloca.h>
+#include<Eigen/Dense>
+#include <Eigen/Geometry>
+
 
 // Get current time
 uint64_t get_time()
@@ -51,6 +58,31 @@ std::vector<double> logspace(double low, double high, int numberOfElements, doub
   return logVec;
 }
 
+// A simple progress bar 
+void progressBar(long progress, long total) {
+        std::string bar;
+
+        // Set the bar resolution
+        long res = 50;
+
+        // Prevent division by zero:
+        if (total < res)
+                res = total - 1;
+
+        for (long i = 0; i < res; i++) {
+                
+                if (i < (progress / (total / res)))
+                        bar += "=";
+                else
+                        bar += " ";
+        }
+        
+        std::cout << "\r" "[" << bar << "] " << 100 * progress / total << "%";
+        std::fflush(stdout);
+        if (progress == total - 1)
+                std::cout << std::endl;
+}
+
 // Linear interpolation. Evaluates y(reqX) by interpolation the vector y(x).
 double linearInterp(std::vector<double> x, std::vector<double> y, double reqX){
   int i = 0;
@@ -73,28 +105,27 @@ double linearInterp(std::vector<double> x, std::vector<double> y, double reqX){
   return (1 - t) * yPrev + t * yNext;
 }
 
-// Surface normal
-std::vector<double> surfNormal(std::vector<double> ptA, std::vector<double> ptB, std::vector<double> ptC){
-  std::vector<double> v1(3);
-  std::vector<double> v2(3);
-  std::vector<double> res(3);
 
-  v1[0] = ptB[0] - ptA[0];
-  v1[1] = ptB[1] - ptA[1];
-  v1[2] = ptB[2] - ptA[2];
-  v2[0] = ptC[0] - ptA[0];
-  v2[1] = ptC[1] - ptA[1];
-  v2[2] = ptC[2] - ptA[2];
+// Rotate vector around x axis
+Eigen::Vector3d rotate_vector_y(Eigen::Vector3d v, double alpha) {
+  // Create rotation matrix
+  Eigen::AngleAxisd rot_y(alpha, Eigen::Vector3d::UnitY());
 
-  res[0] = v1[1] * v2[2] - v1[2] * v2[1];
-  res[1] = v1[2] * v2[0] - v1[0] * v2[2];
-  res[2] = v1[0] * v2[1] - v1[1] * v2[0];
+  // Rotate vector
+  Eigen::Vector3d rotated_v = rot_y * v;
 
-  double norm = vecNorm(res);
-  res[0] = res[0] / norm;
-  res[1] = res[1] / norm;
-  res[2] = -res[2] / norm;
-  return res;
+  return rotated_v;
+}
+
+// Rotate vector around z axis
+Eigen::Vector3d rotate_vector_z(Eigen::Vector3d v, double alpha) {
+  // Create rotation matrix
+  Eigen::AngleAxisd rot_z(alpha, Eigen::Vector3d::UnitZ());
+
+  // Rotate vector
+  Eigen::Vector3d rotated_v = rot_z * v;
+
+  return rotated_v;
 }
 
 // Calculate the norm of a vector
@@ -104,5 +135,112 @@ double vecNorm(std::vector<double> vec){
 
 // Angle between xy plane and vector
 double xyPlaneVecAngle(std::vector<double> vec){
-  return asin(vec[2]/vecNorm(vec));
+  return M_PI/2 - asin(fabs(vec[2])/vecNorm(vec));
+}
+
+////////////
+// Functions for reading configuation files
+////////////
+// Read config file:
+std::vector<var> readConfig(){
+        std::ifstream configFile;
+        configFile.open("./config/config.cfg");
+        std::vector<var> varList; // A varlist vector to store variables.
+        var tempVar; // Temporary var struct used as buffer.
+        addLogEntry("Initializing config file", true);
+
+        if (!configFile) {
+                addLogEntry("Cannot read config file.", true);
+                exit(EXIT_FAILURE);
+        }
+
+        std::string line;
+        while (std::getline(configFile, line)) {
+                // Check if line is commented out:
+                if (line[0] == '/' && line[1] == '/')
+                        continue;
+
+                // Check if line is empty:
+                if (line.empty())
+                        continue;
+
+                // Read strings as stream
+                std::istringstream iss(line);
+                // Define buffer vars to store var name and value:
+                std::string name; 
+                double value;
+                if (!(iss >> name >> value)) {
+                        addLogEntry("Cannot read variable from config file.", true);
+                        exit(EXIT_FAILURE);
+                }
+
+                tempVar.name = name;
+                tempVar.value = value;
+                varList.push_back(tempVar);
+        }
+
+        return varList;
+}
+
+// Read layers file:
+std::vector< std::vector<double> > readLayers(){
+        std::ifstream layersFile;
+        std::vector< std::vector<double> > layersList;
+
+        layersFile.open("./config/layers.cfg");
+
+                addLogEntry("Initializing layers file", true);
+
+        if (!layersFile) {
+                addLogEntry("Cannot read layers file.", true);
+                exit(EXIT_FAILURE);
+        }
+
+        std::string line;
+        while (std::getline(layersFile, line)) {
+                // Check if line is commented out:
+                if (line[0] == '/' && line[1] == '/')
+                        continue;
+
+                // Check if line is empty:
+                if (line.empty())
+                        continue;
+
+                // Read strings as stream
+                std::istringstream iss(line);
+
+                std::vector<double> tempLayer; // Temporary layer used as buffer.
+                double thickness;
+                double regolithFrac;
+                double iceFrac;
+                double sootFrac;
+                if (!(iss >> thickness >> regolithFrac >> iceFrac >> sootFrac)) {
+                        addLogEntry("Cannot read values from layers file.", true);
+                        exit(EXIT_FAILURE);
+                }
+                tempLayer.push_back(thickness);
+                tempLayer.push_back(regolithFrac);
+                tempLayer.push_back(iceFrac);
+                tempLayer.push_back(sootFrac);
+
+                layersList.push_back(tempLayer);
+        }
+
+        return layersList;
+}
+
+// Get variable from list:
+double setVariable(std::vector<var> varList, std::string varName){
+        size_t i;
+
+        for (i = 0; i < varList.size(); i++) {
+                if (varList[i].name == varName) {
+                        char logEntry[100];
+                        sprintf(logEntry, "Getting variable %s with value %f.", varList[i].name.c_str(), varList[i].value);
+                        addLogEntry(logEntry, false);
+                        return varList[i].value;
+                }
+        }
+// If variable was not found:
+        return -1;
 }

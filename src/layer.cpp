@@ -57,6 +57,14 @@ void Layer::consolidate(Layer otherLayer) {
         normalizeComposition();
 }
 
+// Check if layer is empty
+bool Layer::isEmpty() {
+        if (regolithFraction == 0 && iceFraction == 0 && sootFraction == 0) {
+                return true;
+        }
+        return false;
+}
+
 // Shrink a layer:
 void Layer::shrink(double thicknessToRemove) {
         thickness -= thicknessToRemove;

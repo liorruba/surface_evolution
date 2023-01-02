@@ -4,18 +4,22 @@
 #include <cmath>
 #include <vector>
 #include <cassert>
+#include <stdexcept>
 #include "../include/regolit_main.hpp"
 #include "../include/impactor.hpp"
 #include "../include/utility.hpp"
 #include "../include/layer.hpp"
 #include "../include/crater.hpp"
 #include "../include/subsurf_column.hpp"
+#include "../include/log.hpp"
 
+// The empty constructor returns a sursurface column with just regolith
 SubsurfColumn::SubsurfColumn() {
         subsurfLayers.push_back(Layer(initialThickness, 1, 0, 0));
         // Initially set the surface elevation to the initial thickness
         surfaceElevation = initialThickness;
 }
+
 
 double SubsurfColumn::getSurfaceElevation() {
         return surfaceElevation;
@@ -24,17 +28,23 @@ double SubsurfColumn::getSurfaceElevation() {
 ////
 // Add material to column:
 void SubsurfColumn::addLayer(Layer newLayer) {
-        // Thickness cannot be a negative number
-        assert(newLayer.thickness >= 0);
+        // Thickness cannot be a zero or a negative number
+        if (newLayer.thickness <= 0){
+                throw std::invalid_argument("Cannot add layer with 0 thickness.");
+        }
+        // Layer cannot be empty
+        if (newLayer.isEmpty()){
+                throw std::invalid_argument("Cannot add layer with null composition.");
+        }
 
         // If new layer composition is the same as the topmost layer, consolidate:
         if (newLayer.compareComposition(subsurfLayers.back())) {
                 subsurfLayers.back().consolidate(newLayer);
         }
         // if new layer is smaller than the threshold, also consolidate with topmost layer:
-        else if (newLayer.thickness < resolution / initialThickness) {
-                subsurfLayers.back().consolidate(newLayer);
-        }
+        // else if (newLayer.thickness < resolution / initialThickness) {
+        //         subsurfLayers.back().consolidate(newLayer);
+        // }
         // Else, add the layer on top:
         else {
                 subsurfLayers.push_back(newLayer);
@@ -75,6 +85,7 @@ Layer SubsurfColumn::integrateColumnComposition(double depthToIntergrate) {
 
         it = subsurfLayers.end();
         it--;
+
         while(depthToIntergrate > (it->thickness) && (depthToIntergrate > 0)) {
                 buffLayer.consolidate(*it);
                 depthToIntergrate -= (it->thickness);
@@ -83,6 +94,11 @@ Layer SubsurfColumn::integrateColumnComposition(double depthToIntergrate) {
         Layer remainingLayer = *it;
         remainingLayer.shrink(fabs((it->thickness) - depthToIntergrate));
         buffLayer.consolidate(remainingLayer);
+
+        if ((buffLayer.regolithFraction == 0) && (buffLayer.sootFraction == 0) && (buffLayer.iceFraction == 0)){
+                throw std::invalid_argument("Integrated layer composition is null.");
+        }
+
         return buffLayer;
 }
 
