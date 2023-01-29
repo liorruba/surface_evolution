@@ -30,7 +30,7 @@ double SubsurfColumn::getSurfaceElevation() {
 void SubsurfColumn::addLayer(Layer newLayer) {
         // Thickness cannot be a zero or a negative number
         if (newLayer.thickness <= 0){
-                throw std::invalid_argument("Cannot add layer with 0 thickness.");
+                throw std::invalid_argument("Cannot add layer with thickness <= 0.");
         }
         // Layer cannot be empty
         if (newLayer.isEmpty()){
@@ -41,10 +41,7 @@ void SubsurfColumn::addLayer(Layer newLayer) {
         if (newLayer.compareComposition(subsurfLayers.back())) {
                 subsurfLayers.back().consolidate(newLayer);
         }
-        // if new layer is smaller than the threshold, also consolidate with topmost layer:
-        // else if (newLayer.thickness < resolution / initialThickness) {
-        //         subsurfLayers.back().consolidate(newLayer);
-        // }
+
         // Else, add the layer on top:
         else {
                 subsurfLayers.push_back(newLayer);

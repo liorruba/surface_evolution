@@ -27,47 +27,64 @@ namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;
 
 // A constructor for the grid class. Creates a grid with (size * size) elements.
-Grid::Grid(std::vector< std::vector<double> > _initLayersList){
+Grid::Grid(std::vector< std::vector<double> > _initLayersList, std::vector< std::vector<int> > _pxIdxMat){
         gridSize = regionWidth / resolution;
         x = linspace(-regionWidth/2, regionWidth/2, gridSize);
         y = linspace(-regionWidth/2, regionWidth/2, gridSize);
         area = pow(regionWidth, 2);
+        pixelIndexMatrix = _pxIdxMat;
         initLayersList = _initLayersList;
         subsurfColumns = initializeSubsurface();
 }
 
 // Initialize a matrix of columns (2d vector):
 std::vector< std::vector<SubsurfColumn> > Grid::initializeSubsurface(){
-        addLogEntry("Generating grid...", true);
+        addLogEntry("Generating grid (this may take some time, depending on the grid size)", true);
+        SubsurfColumn buffCol = SubsurfColumn(); // for storing the subsurface grid
+        std::vector<SubsurfColumn> buffColVecByIdx; // for storing the subsurface grid BY PIXEL INDEX (a vector of columns)
         std::vector< std::vector<SubsurfColumn> > buffMat;
-        std::vector<SubsurfColumn> buffVec;     
-
         std::vector< std::vector<double> >::iterator row;
 
         // Create a buffer subsurface column, and populate it with the
         // requested layers:
-        addLogEntry("Creating initial subsurface layering for a single column.", false);
-        SubsurfColumn buffCol = SubsurfColumn();
+        addLogEntry("Creating initial subsurface layering for a single column.", true);
+
+        int prev = (*initLayersList.begin())[0];
         for (row = initLayersList.begin(); row != initLayersList.end(); ++row) {
-                buffCol.addLayer(Layer((*row)[0], (*row)[1], (*row)[2], (*row)[3]));
+                if ((*row)[0] != prev){
+                        prev = (*row)[0];
+                        buffColVecByIdx.push_back(buffCol);
+                        buffCol = SubsurfColumn();       
+                }
+                Layer buffLayer = Layer((*row)[1], (*row)[2], (*row)[3], (*row)[4]);
+                buffCol.addLayer(buffLayer);
         }
-        addLogEntry("Finished creating column.", false);
-        
-        char logEntry[200];
-        sprintf(logEntry, "Populating grid by duplicating column %dx%d times (this may take some time, depending on the grid size).", gridSize, gridSize);
-        addLogEntry(logEntry, false);
+        buffColVecByIdx.push_back(buffCol);
+
+        addLogEntry("Finished creating column.", true);
+        addLogEntry("Populating grid by dulicating columns...", true);
 
         // Populate the grid with the buffer subsurface column:
         for (int i = 0; i < gridSize; ++i){
+                std::vector<SubsurfColumn> buffVec;
                 for (int j = 0; j < gridSize; ++j){
-                        buffVec.push_back(buffCol);
+                        
+                        buffVec.push_back(buffColVecByIdx[pixelIndexMatrix[i][j] - 1]);
                 }
+
                 buffMat.push_back(buffVec);
 
                 progressBar(i, gridSize);
         }
 
         addLogEntry("Finished creating grid.", true);
+        // for (int i = 0; i < gridSize; ++i){
+        //         std::cout << "hi" << std::endl;
+        //         for (int j = 0; j < gridSize; ++j){
+                        
+        //                 buffMat[i][j].subsurfLayers.back().print();
+        //         }
+        // }
 
         return buffMat;
 }
@@ -76,7 +93,7 @@ std::vector< std::vector<SubsurfColumn> > Grid::initializeSubsurface(){
 void Grid::formCrater(Crater &crater){
         double distanceFromCraterCenter = 0; // For later use.
         double craterProfile = 0; // The maximum depth of the new cavity.
-        double elevationAtCenter = getSurfaceElevationAtPoint(crater.xLocation, crater.yLocation);
+        // double elevationAtCenter = getSurfaceElevationAtPoint(crater.xLocation, crater.yLocation);
 
         // Add crater to vector:
         cratersDict[cratersDict.size()] = &crater;
@@ -95,10 +112,6 @@ void Grid::formCrater(Crater &crater){
         /// the material inside the crater for it to be emplaced in the ejecta
         /// NOTE: Some of this code was written by OpenGPT! :-)
         //////////
-        // Calculate the center of the subgrid
-        // int centerI = (iInit + iFinal) / 2;
-        // int centerJ = (jInit + jFinal) / 2;
-
         // Trim the grid edges
         if(iInit < 0) iInit = 0;
         if(iFinal > gridSize) iFinal = gridSize;
@@ -129,7 +142,8 @@ void Grid::formCrater(Crater &crater){
 
         // Loop over the sorted vector of tuples
         for (const std::tuple<int, int, double>& index : indexes) {
-        // Extract the index variables from the tuple                
+
+                // Extract the index variables from the tuple                
                 int i = std::get<0>(index);
                 int j = std::get<1>(index);
                 
@@ -159,16 +173,24 @@ void Grid::formCrater(Crater &crater){
                                 }
                         }
 
-                        craterProfile = elevationAtCenter - craterProfile;
+                        craterProfile = getSurfaceElevationAtPoint(x.at(i), y.at(j)) - craterProfile;
 
                         double leftToRemove = subsurfColumns.at(j).at(i).getSurfaceElevation() - craterProfile;
                         
-                        // std::cout << leftToRemove << " " << std::endl;
                         // If the thickness of the material left to remove is positive, remove material
                         if (leftToRemove > 0) {
                                 crater.ejectedMass.consolidate(subsurfColumns.at(j).at(i).integrateColumnComposition(leftToRemove));
                                 subsurfColumns.at(j).at(i).removeMaterial(leftToRemove);
-                        }
+                                
+                                if (crater.ejectedMass.iceFraction > 0.01) {
+                                        // std::cout << "before " << crater.ejectedMass.iceFraction << std::endl;
+                                        // Adjust the composition of the ejected material, by removing ice lost through heating:
+                                        crater.ejectedMass.changeComposition(crater.ejectedMass.regolithFraction, 
+                                                crater.ejectedMass.iceFraction * ejectaVolatileRetention, 
+                                                crater.ejectedMass.sootFraction);
+                                        // std::cout << "after "<< crater.ejectedMass.iceFraction << std::endl;
+                                }
+                        }       
                         // If the thickness of the left to remove is negative, add material
                         else if (!crater.ejectedMass.isEmpty()) {
                                 subsurfColumns.at(j).at(i).addLayer(Layer(fabs(leftToRemove),
@@ -176,6 +198,7 @@ void Grid::formCrater(Crater &crater){
                                         crater.ejectedMass.iceFraction,
                                         crater.ejectedMass.sootFraction));
                         }
+
                         
                 }
                 
@@ -353,6 +376,31 @@ double Grid::craterSphericalDepthProfile(double craterRadius, double distanceFro
 
         return -sphereRadius + craterDepth + sqrt(pow(sphereRadius,2) - pow(distanceFromCraterCenter,2));
 }
+
+///////////////////
+// Simple sublimation/accumulation:
+///////////////////
+void Grid::sublimateIce() {
+        return;
+        // TODO: ADD NORBERT'S MODEL
+}
+
+void Grid::depositLayer(Layer layer) {
+        for (int i = 0; i < gridSize; ++i){
+                for (int j = 0; j < gridSize; ++j) {
+                        // If the top layer has some ice, sublimate:
+                        if (subsurfColumns[i][j].subsurfLayers.back().iceFraction > 0){
+                                subsurfColumns[i][j].addLayer(layer);
+                        }
+                }
+        }
+}
+
+/////////////////
+// Ice Stability:
+/////////////////
+// The temperature depndent surface loss rate based on WMB 1962
+// Returns loss rate in kg Ma^-1
 
 /////////
 // ********************

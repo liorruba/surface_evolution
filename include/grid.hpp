@@ -48,13 +48,13 @@ typedef bgi::rtree< CraterRef, bgi::quadratic<16>, bgi::indexable<CraterRef>,  m
 ////////////////////////
 class Grid {
 
-public:
+public:   
 double area;
 std::vector<double> x;
 std::vector<double> y;
 std::vector< std::vector<SubsurfColumn> > subsurfColumns;
 
-Grid(std::vector< std::vector<double> > _initLayersList);
+Grid(std::vector< std::vector<double> > _initLayersList, std::vector< std::vector<int> > _pxIdxMat);
 void formCrater(Crater &crater);
 void emplaceEjecta(Crater &crater);
 void printSurface(int index);
@@ -64,6 +64,8 @@ void updateExistingCratersDepth(Crater &crater);
 bool calculatePermanentShadow(int faceti, int facetj, double solarZenith);
 void printExistingCratersToHistogram(double bins);
 void printExistingCraters();
+void sublimateIce();
+void depositLayer(Layer layer);
 
 private:
 int gridSize;
@@ -74,6 +76,7 @@ double rimHeight(double craterRadius, double distanceFromCraterCenter);
 double getSurfaceElevationAtPoint(double x, double y);
 std::tuple<double, double> calculateSlope(const Crater crater);
 std::vector< std::vector<double> > initLayersList;
+std::vector< std::vector<int> > pixelIndexMatrix;
 
 std::vector< std::vector<SubsurfColumn> > initializeSubsurface();
 std::map<size_t, Crater *> cratersDict;

@@ -10,8 +10,10 @@
 #include<vector>
 #include<fstream>
 #include<sstream>
+#include "../include/regolit_main.hpp"
 #include "../include/utility.hpp"
 #include "../include/log.hpp"
+
 
 #include<alloca.h>
 #include<Eigen/Dense>
@@ -105,6 +107,16 @@ double linearInterp(std::vector<double> x, std::vector<double> y, double reqX){
   return (1 - t) * yPrev + t * yNext;
 }
 
+// Rotate vector around x axis
+Eigen::Vector3d rotate_vector_x(Eigen::Vector3d v, double alpha) {
+  // Create rotation matrix
+  Eigen::AngleAxisd rot_x(alpha, Eigen::Vector3d::UnitX());
+
+  // Rotate vector
+  Eigen::Vector3d rotated_v = rot_x * v;
+
+  return rotated_v;
+}
 
 // Rotate vector around x axis
 Eigen::Vector3d rotate_vector_y(Eigen::Vector3d v, double alpha) {
@@ -188,7 +200,6 @@ std::vector< std::vector<double> > readLayers(){
         std::vector< std::vector<double> > layersList;
 
         layersFile.open("./config/layers.cfg");
-
                 addLogEntry("Initializing layers file", true);
 
         if (!layersFile) {
@@ -210,14 +221,18 @@ std::vector< std::vector<double> > readLayers(){
                 std::istringstream iss(line);
 
                 std::vector<double> tempLayer; // Temporary layer used as buffer.
+                int pixelIndex;
                 double thickness;
                 double regolithFrac;
                 double iceFrac;
                 double sootFrac;
-                if (!(iss >> thickness >> regolithFrac >> iceFrac >> sootFrac)) {
+
+                // First, read layer index:
+                if (!(iss >> pixelIndex >> thickness >> regolithFrac >> iceFrac >> sootFrac)) {
                         addLogEntry("Cannot read values from layers file.", true);
                         exit(EXIT_FAILURE);
                 }
+                tempLayer.push_back(pixelIndex);
                 tempLayer.push_back(thickness);
                 tempLayer.push_back(regolithFrac);
                 tempLayer.push_back(iceFrac);
@@ -228,6 +243,60 @@ std::vector< std::vector<double> > readLayers(){
 
         return layersList;
 }
+
+std::vector< std::vector<int> > readPixelIndex(){
+        int gridSize = regionWidth / resolution;
+        std::ifstream pxIdxFile("./config/pixelIndex.cfg");
+        std::vector< std::vector<int> > pixelsIndexMatrix;
+
+        pxIdxFile.open("./config/pxIdxFile.cfg");
+        addLogEntry("Initializing pixel indexes file", true);
+
+        // If the pixel index file doesn't exist, create a matrix of 1's
+        if (!pxIdxFile) {
+                addLogEntry("Cannot read pixel indexes file. Creating a uniform subsurface grid...", true);
+
+                std::vector<int> row;
+                for (int i = 0; i < gridSize; ++i) {
+                        for (int j = 0; j < gridSize; ++j) {
+                                row.push_back(1);
+                        }
+                        pixelsIndexMatrix.push_back(row);
+                }
+        }
+        // If it exists, read the file:
+        else {
+                addLogEntry("Reading pixel indexes from file.", true);
+                std::vector<int> row;
+                std::string line;
+
+                while(getline(pxIdxFile, line)) {
+                        std::vector<int> row;
+                        int pxIdx;
+                        std::stringstream ss(line);
+
+                        while(ss>>pxIdx) {
+                                row.push_back(pxIdx);
+
+                                if (pxIdx == 0) {
+                                        throw std::runtime_error("Input pixel indexes must be 1-based.");
+                                }
+
+                        }
+                        pixelsIndexMatrix.push_back(row);
+                }
+        }
+        
+        pxIdxFile.close();
+        // Make sure the size of the pixel index matrix matches the size set by the user:
+        if ((int)pixelsIndexMatrix.size() != gridSize) {
+                addLogEntry("Size of the input pixel matrix must equal the grid size, given by regionWidth/resolution. Terminating.", false);
+                throw std::runtime_error("Size of the input pixel matrix must equal the grid size, given by regionWidth/resolution.");
+        }
+
+        return pixelsIndexMatrix;
+}
+
 
 // Get variable from list:
 double setVariable(std::vector<var> varList, std::string varName){

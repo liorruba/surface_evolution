@@ -27,7 +27,6 @@
 #include "../include/crater.hpp"
 #include "../include/subsurf_column.hpp"
 #include "../include/grid.hpp"
-#include "../include/tests.hpp"
 
 //////////////////////////////
 // DECLARE INPUT PARAMETERS //
@@ -41,7 +40,8 @@ double initialThickness; // Initial thickness of subsurface layer.
 double latitude; // Latitude (for shadow calculation; in development)
 bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive.
 bool isEmplaceSecondaries; // Should emplace ejecta? Computationally extensive.
-bool runTests; // Should emplace ejecta? Computationally extensive.
+bool runTests; // Should run tests? 
+int randomSeed; // Random number generator seed
 
 // Crater formation variables:
 double depthToDiameter; // Dimensionless ratio, crater depth to diameter
@@ -50,16 +50,21 @@ double rimDropoffExponent; // The exponent of the rim height decrease power law
 double numberOfZModelShells; // Number of shells in z model (for ejecta calc.)
 int craterProfileType; // Chosen crater profile
 int ejectaSpread; // The spread of the ejecta in crater radii
+double ejectaVolatileRetention; // The fraction of volatiles that remain in the caterr ejecta
 double slope_secondaries; // The spread of the ejecta in crater radii
 double iceDensity; // The density of ice
 double regolithDensity; // The density of ice
+double sootDensity; // The density of "soot"
 double c_ice; // The speed of sound in ice
 double c_regolith; // The speed of sound in regolith
 double s_ice; // slope of the shock / particle velocity relation (ice)
 double s_regolith; // slope of the shock / particle velocity relation (regolith)
 double ice_fraction; // The fraction of ice in the regolith-ice mixture
 double porosity; // The impact target porosity
-double temperature; // The subsurface constant temperature
+double sublimationInterval; // The time between two erosion "events"
+double sublimationThickness; // The thickness of sublimated layer
+double iceEmplacementInterval; // The time between two erosion "events"
+double iceEmplacementThickness; // The thickness of sublimated layer
 
 // Impactor distribution variables:
 double slope_b; // Slope of the impactor CDF
@@ -133,7 +138,6 @@ int main() {
         createLogFile("log/log.txt");
         // Read config:
         std::vector<var> varList = readConfig();
-        std::vector< std::vector<double> > initLayersList = readLayers();
 
         // Set variables from parameters:
         // Simulation variables:
@@ -146,6 +150,7 @@ int main() {
         isEmplaceEjecta = setVariable(varList, "isEmplaceEjecta");
         isEmplaceSecondaries = setVariable(varList, "isEmplaceSecondaries");
         runTests = setVariable(varList, "runTests");
+        randomSeed = (int) setVariable(varList, "randomSeed");
 
         // Crater formation variables:
         depthToDiameter = setVariable(varList, "depthToDiameter");
@@ -154,16 +159,21 @@ int main() {
         numberOfZModelShells = setVariable(varList, "numberOfZModelShells");
         craterProfileType = (int) setVariable(varList, "craterProfileType");
         ejectaSpread = (int) setVariable(varList, "ejectaSpread");
+        ejectaVolatileRetention = (double) setVariable(varList, "ejectaVolatileRetention");
         slope_secondaries = setVariable(varList, "slope_secondaries");
         iceDensity = setVariable(varList, "iceDensity");
         regolithDensity = setVariable(varList, "regolithDensity");
+        sootDensity = setVariable(varList, "sootDensity");
         c_ice = setVariable(varList, "c_ice");
         c_regolith = setVariable(varList, "c_regolith");
         s_ice = setVariable(varList, "s_ice");
         s_regolith = setVariable(varList, "s_regolith");
         ice_fraction = setVariable(varList, "ice_fraction");
         porosity = setVariable(varList, "porosity");
-        temperature = setVariable(varList, "temperature");
+        iceEmplacementInterval = (double) setVariable(varList, "iceEmplacementInterval");
+        iceEmplacementThickness = (double) setVariable(varList, "iceEmplacementThickness");
+        sublimationInterval = (double) setVariable(varList, "sublimationInterval");
+        sublimationThickness = (double) setVariable(varList, "sublimationThickness");
 
         // Impactor distribution variables:
         slope_b = setVariable(varList, "slope_b");
@@ -182,20 +192,7 @@ int main() {
         targetDensity = setVariable(varList, "targetDensity");
 
         // Initialize the random number generator seed:
-        srand48(2);
-
-        ///////////////
-        // Run tests //
-        ///////////////
-        if (runTests) {
-                addLogEntry("Running unit tests...", true);
-                // If tests did not pass:
-                if (tests())
-                        addLogEntry("All tests passed successfully.", true);
-                else
-                        addLogEntry("Not all tests passed successfully. Terminating.", true);
-                return 0;
-        }
+        srand48(randomSeed);
 
         ////////////////////////////////////////////
         ////////////////////////////////////////////
@@ -209,13 +206,19 @@ int main() {
         ////////////////////////////
         // Simulation parameters  //
         ////////////////////////////
+        // Read initial layers and pixel index files:
+        std::vector< std::vector<double> > initLayersList = readLayers();
+        std::vector< std::vector<int> > pixelIndexMatrix = readPixelIndex();
+
         // Generate grid:
-        Grid grid = Grid(initLayersList);
+        Grid grid = Grid(initLayersList, pixelIndexMatrix);
 
         // Total number of craters to be created:
         addLogEntry("Calculating number of caters to be created...", true);
         long totalNumberOfImpactors = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * endTime * grid.area * earthFluxRatioCoefficient); // total number of impactors to generate larger than minimumDiameter: N/At = cD^-b.
         long numberOfCratersInTimestep = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * printTimeStep * grid.area * earthFluxRatioCoefficient); // number of impactors to generate larger than minimumDiameter: N/At = cD^-b in some time interval.
+        long numberOfCratersInSublimationPeriod = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * sublimationInterval * grid.area * earthFluxRatioCoefficient); // number of impactors in 10 Ma, the time period after which material gets sublimated
+        long numberOfCratersInDepositionEvent = ceil(fluxConstant_c * pow(minimumImpactorDiameter,-slope_b) * iceEmplacementInterval * grid.area * earthFluxRatioCoefficient); // number of impactors in 10 Ma, the time period after which material gets sublimated
 
         char logEntry[50];
         sprintf(logEntry, "Number of craters in simulation: %ld.", totalNumberOfImpactors);
@@ -224,7 +227,7 @@ int main() {
         // Show warning if totalNumberOfImpactors is too high. 
         // If the memory taken by the craters exceeds 1 GB, throw a memory warning:
         if (sizeof(Crater) * totalNumberOfImpactors > 1e9)
-                addLogEntry("WARNING: memory taken by craters exceeds 1 GB", true);
+                addLogEntry("WARNING: memory taken by craters exceeds 1 GB. Press ENTER to continue.", true);
 
         // Craters and impactors histograms:
         Histogram cratersHistogram(minimumImpactorDiameter * 10, regionWidth, 20); // Crater histogram from 10*minimumImpactorDiameter to regionWidth meters
@@ -326,7 +329,20 @@ int main() {
                                 }
                         }
                 }
-                // // Update crater depths, after topography has changed:
+
+                // Sublimate material every sublimation period:
+                if (i%numberOfCratersInSublimationPeriod == 0){
+                        grid.sublimateIce();
+                }
+
+                // Deposit ice periodically
+                if (i%numberOfCratersInDepositionEvent == 0){
+                        if (iceEmplacementThickness > 0){ 
+                                grid.depositLayer(Layer(iceEmplacementThickness, 0, 1, 0));
+                        }
+                }
+
+                // Update crater depths, after topography has changed:
                 // grid.updateExistingCratersDepth(crater);
                 // cratersDepthHistogram.add(crater.finalDepth);
 
@@ -336,6 +352,7 @@ int main() {
                 if (i%numberOfCratersInTimestep == 0) {
                         // Pring z matrix:
                         grid.printSurface(printIndex);
+                        grid.printGrid(printIndex);
 
                         // Print to log:
                         char logEntry[100];
@@ -351,6 +368,7 @@ int main() {
         cratersHistogram.print("./output/craters_histogram.txt");
         impactorsHistogram.print("./output/impactor_histogram.txt");
         cratersDepthHistogram.print("./output/depth_histogram.txt");
+        grid.sublimateIce(); // Sublimate ice one last time
         grid.printSurface(0);
         grid.printGrid(0);
 

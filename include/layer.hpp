@@ -15,6 +15,7 @@ public:
   void consolidate(Layer layer);
   void shrink(double depthToRemove);
   void print(bool isNiceInterface = true);
+  void changeComposition(double _regolithFraction, double _iceFraction, double _sootFraction);
 
 private:
   void normalizeComposition();

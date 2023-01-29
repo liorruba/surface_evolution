@@ -9,6 +9,7 @@ extern double latitude; // Latitude (for shadow calculation)
 extern bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive.
 extern bool isEmplaceSecondaries; // Should emplace secondaries? Computationally extensive.
 extern bool runTests; // Run tests?
+extern int randomSeed; // Random number generator seed
 
 // Crater formation variables:
 extern double depthToDiameter; // Dimensionless ratio
@@ -17,16 +18,21 @@ extern double rimDropoffExponent; // The exponent of the rim height decrease pow
 extern double numberOfZModelShells; // Number of shells in z model (for ejecta calc.)
 extern int craterProfileType; // Chosen crater profile
 extern int ejectaSpread; // The spread of the ejecta in crater radii
+extern double ejectaVolatileRetention; // The fraction of volatiles that remain in the caterr ejecta
 extern double slope_secondaries; // The spread of the ejecta in crater radii
 extern double iceDensity; // The density of ice
 extern double regolithDensity; // The density of ice
+extern double sootDensity; // The density of "soot"
 extern double c_ice; // The speed of sound in ice
 extern double c_regolith; // The speed of sound in regolith
 extern double s_ice; // slope of the shock / particle velocity relation (ice)
 extern double s_regolith; // slope of the shock / particle velocity relation (regolith)
 extern double ice_fraction; // The fraction of ice in the regolith-ice mixture
 extern double porosity; // The impact target porosity
-extern double temperature; // The subsurface constant temperature
+extern double iceEmplacementInterval; // The time between two episodic ice emplacements
+extern double iceEmplacementThickness; // The thickness of ice deposited in each episodic event
+extern double sublimationInterval; // The time between two erosion "events"
+extern double sublimationThickness; // The thickness of sublimated layer
 
 
 // Impactor distribution variables:

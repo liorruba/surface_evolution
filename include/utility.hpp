@@ -47,11 +47,13 @@ int roundUp(int numToRound, int multiple);
 // Read config and layers files:
 std::vector<var> readConfig();
 std::vector< std::vector<double> > readLayers();
+std::vector< std::vector<int> > readPixelIndex();
 double setVariable(std::vector<var> varList, std::string varName);
 
 // A simple progress bar
 void progressBar(long progress, long total);
 
 // Rotate vectors
+Eigen::Vector3d rotate_vector_x(Eigen::Vector3d v, double alpha);
 Eigen::Vector3d rotate_vector_y(Eigen::Vector3d v, double alpha);
 Eigen::Vector3d rotate_vector_z(Eigen::Vector3d v, double alpha);

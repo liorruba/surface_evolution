@@ -27,7 +27,7 @@ Layer::Layer(double dummy_numOfLayers, double dummy_elevation){
         sootFraction = -1;
 }
 
-// Normlize later composition:
+// Normalize layer composition:
 void Layer::normalizeComposition() {
         double sum = regolithFraction + iceFraction + sootFraction;
         if (sum == 0)
@@ -41,10 +41,25 @@ void Layer::normalizeComposition() {
 
 // Compare the composition of two layers:
 bool Layer::compareComposition(Layer layer) {
-        if (regolithFraction ==  layer.regolithFraction && iceFraction == layer.iceFraction && sootFraction == layer.sootFraction) {
+        double eps = 1e-2;
+
+        if (
+                (fabs(regolithFraction - layer.regolithFraction) < eps) && 
+                (fabs(iceFraction - layer.iceFraction) < eps) && 
+                (fabs(sootFraction - layer.sootFraction) < eps)
+                ) {
                 return true;
         }
         return false;
+}
+
+// Change layer composition
+void Layer::changeComposition(double _regolithFraction, double _iceFraction, double _sootFraction){
+        regolithFraction = _regolithFraction;
+        iceFraction = _iceFraction;
+        sootFraction = _sootFraction;
+
+        normalizeComposition();
 }
 
 // Consolidate two layers:
