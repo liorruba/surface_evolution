@@ -320,7 +320,7 @@ int main() {
                         if (isEmplaceSecondaries) {
                                 // Form a secondary crater within 2 crater diameters from the primary:
                                 if (crater.numberOfSecondaries > 0) {
-                                        char logEntry[50];
+                                        char logEntry[400];
                                         sprintf(logEntry, "Primary diameter: %f. Number of secondaries: %d.", 2*crater.finalRadius, crater.numberOfSecondaries);
                                         addLogEntry(logEntry, true);
                                 }
