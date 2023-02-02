@@ -1,8 +1,3 @@
-#include <alloca.h>
-#include<Eigen/Dense>
-#include <Eigen/Geometry>
-
-
 // A quick map to store variables:
 typedef struct {
         std::string name;
