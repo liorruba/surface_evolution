@@ -50,8 +50,3 @@ void progressBar(long progress, long total);
 
 // Convert 2-d to linear index
 int getLinearIndex(int i, int j, int numCols);
-
-// Rotate vectors
-Eigen::Vector3d rotate_vector_x(Eigen::Vector3d v, double alpha);
-Eigen::Vector3d rotate_vector_y(Eigen::Vector3d v, double alpha);
-Eigen::Vector3d rotate_vector_z(Eigen::Vector3d v, double alpha);
