@@ -151,22 +151,22 @@ void Grid::formCrater(Crater &crater){
                 if (distanceFromCraterCenter <= crater.finalRadius) {
                         if (craterProfileType == 1) {
                                 if (isEmplaceEjecta) {
-                                        craterProfile = craterParabolicDepthProfile(crater.finalRadius, distanceFromCraterCenter, 0)
+                                        craterProfile = craterParabolicDepthProfile(crater.finalRadius, distanceFromCraterCenter)
                                                         - crater.rimHeight - linearInterp(crater.ejectaDistance, crater.ejectaThickness, crater.finalRadius);
                                 }
                                 else {
-                                        craterProfile = craterParabolicDepthProfile(crater.finalRadius, distanceFromCraterCenter, 0)
+                                        craterProfile = craterParabolicDepthProfile(crater.finalRadius, distanceFromCraterCenter)
                                                         - crater.rimHeight;
                                 }
 
                         }
                         if (craterProfileType == 2) {
                                 if (isEmplaceEjecta) {
-                                        craterProfile = craterSphericalDepthProfile(crater.finalRadius, distanceFromCraterCenter, 0)
+                                        craterProfile = craterSphericalDepthProfile(crater.finalRadius, distanceFromCraterCenter)
                                                         - crater.rimHeight - linearInterp(crater.ejectaDistance, crater.ejectaThickness, crater.finalRadius);
                                 }
                                 else {
-                                        craterProfile = craterSphericalDepthProfile(crater.finalRadius, distanceFromCraterCenter, 0)
+                                        craterProfile = craterSphericalDepthProfile(crater.finalRadius, distanceFromCraterCenter)
                                                         - crater.rimHeight;
                                 }
                         }
@@ -322,17 +322,15 @@ void Grid::updateExistingCratersDepth(Crater &crater) {
 // Crater profiles:
 ///////////////////
 // Parabolic:
-double Grid::craterParabolicDepthProfile(double craterRadius, double distanceFromCraterCenter, double normAngle){
-        normAngle = 0; // To do
+double Grid::craterParabolicDepthProfile(double craterRadius, double distanceFromCraterCenter){
         return depthToDiameter * 2 * craterRadius * (1 - pow(distanceFromCraterCenter/craterRadius,2));
 
 }
 
 // Bowl shaped:
-double Grid::craterSphericalDepthProfile(double craterRadius, double distanceFromCraterCenter, double normAngle){
+double Grid::craterSphericalDepthProfile(double craterRadius, double distanceFromCraterCenter){
         double craterDepth = 2 * craterRadius * depthToDiameter;
         double sphereRadius = (pow(craterRadius,2) + pow(craterDepth,2)) / 2 / craterDepth;
-        normAngle = 0; // To do
 
         return -sphereRadius + craterDepth + sqrt(pow(sphereRadius,2) - pow(distanceFromCraterCenter,2));
 }

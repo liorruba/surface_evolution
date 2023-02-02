@@ -69,8 +69,8 @@ void depositLayer(Layer layer);
 private:
 int gridSize;
 long numberOfCratersOnGrid;
-double craterParabolicDepthProfile(double craterRadius, double distanceFromCraterCenter, double normAngle);
-double craterSphericalDepthProfile(double craterRadius, double distanceFromCraterCenter, double normAngle);
+double craterParabolicDepthProfile(double craterRadius, double distanceFromCraterCenter);
+double craterSphericalDepthProfile(double craterRadius, double distanceFromCraterCenter);
 double rimHeight(double craterRadius, double distanceFromCraterCenter);
 double getSurfaceElevationAtPoint(double x, double y);
 std::tuple<double, double> calculateSlope(const Crater crater);
