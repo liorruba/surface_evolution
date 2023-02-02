@@ -42,6 +42,7 @@ bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive.
 bool isEmplaceSecondaries; // Should emplace ejecta? Computationally extensive.
 bool runTests; // Should run tests? 
 int randomSeed; // Random number generator seed
+bool isPrintSubsurface; // Print the full subsurface?
 
 // Crater formation variables:
 double depthToDiameter; // Dimensionless ratio, crater depth to diameter
@@ -51,6 +52,7 @@ double numberOfZModelShells; // Number of shells in z model (for ejecta calc.)
 int craterProfileType; // Chosen crater profile
 int ejectaSpread; // The spread of the ejecta in crater radii
 double ejectaVolatileRetention; // The fraction of volatiles that remain in the caterr ejecta
+double ejectaSootRetention; // The fraction of soot that remain in the caterr ejecta
 double slope_secondaries; // The spread of the ejecta in crater radii
 double iceDensity; // The density of ice
 double regolithDensity; // The density of ice
@@ -151,6 +153,7 @@ int main() {
         isEmplaceSecondaries = setVariable(varList, "isEmplaceSecondaries");
         runTests = setVariable(varList, "runTests");
         randomSeed = (int) setVariable(varList, "randomSeed");
+        isPrintSubsurface = (bool) setVariable(varList, "isPrintSubsurface");
 
         // Crater formation variables:
         depthToDiameter = setVariable(varList, "depthToDiameter");
@@ -160,6 +163,7 @@ int main() {
         craterProfileType = (int) setVariable(varList, "craterProfileType");
         ejectaSpread = (int) setVariable(varList, "ejectaSpread");
         ejectaVolatileRetention = (double) setVariable(varList, "ejectaVolatileRetention");
+        ejectaSootRetention = (double) setVariable(varList, "ejectaSootRetention");
         slope_secondaries = setVariable(varList, "slope_secondaries");
         iceDensity = setVariable(varList, "iceDensity");
         regolithDensity = setVariable(varList, "regolithDensity");
@@ -208,7 +212,7 @@ int main() {
         ////////////////////////////
         // Read initial layers and pixel index files:
         std::vector< std::vector<double> > initLayersList = readLayers();
-        std::vector< std::vector<int> > pixelIndexMatrix = readPixelIndex();
+        std::vector<int8_t> pixelIndexMatrix = readPixelIndex();
 
         // Generate grid:
         Grid grid = Grid(initLayersList, pixelIndexMatrix);
@@ -351,8 +355,11 @@ int main() {
                 // Print progress to a file:
                 if (i%numberOfCratersInTimestep == 0) {
                         // Pring z matrix:
-                        grid.printSurface(printIndex);
-                        grid.printGrid(printIndex);
+                        grid.printSurface(printIndex, false);
+
+                        if (isPrintSubsurface) {
+                                grid.printSubsurface(printIndex);
+                        }
 
                         // Print to log:
                         char logEntry[100];
@@ -369,8 +376,10 @@ int main() {
         impactorsHistogram.print("./output/impactor_histogram.txt");
         cratersDepthHistogram.print("./output/depth_histogram.txt");
         grid.sublimateIce(); // Sublimate ice one last time
-        grid.printSurface(0);
-        grid.printGrid(0);
+        grid.printSurface(printIndex, true);
+        if (isPrintSubsurface) {
+                grid.printSubsurface(printIndex);
+        }
 
         addLogEntry("Simulation has ended.", true);
 }

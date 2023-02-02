@@ -27,7 +27,7 @@ namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;
 
 // A constructor for the grid class. Creates a grid with (size * size) elements.
-Grid::Grid(std::vector< std::vector<double> > _initLayersList, std::vector< std::vector<int> > _pxIdxMat){
+Grid::Grid(std::vector< std::vector<double> > _initLayersList, std::vector<int8_t> _pxIdxMat){
         gridSize = regionWidth / resolution;
         x = linspace(-regionWidth/2, regionWidth/2, gridSize);
         y = linspace(-regionWidth/2, regionWidth/2, gridSize);
@@ -65,11 +65,19 @@ std::vector< std::vector<SubsurfColumn> > Grid::initializeSubsurface(){
         addLogEntry("Populating grid by dulicating columns...", true);
 
         // Populate the grid with the buffer subsurface column:
+        int idx; // linear index for i,j
         for (int i = 0; i < gridSize; ++i){
                 std::vector<SubsurfColumn> buffVec;
                 for (int j = 0; j < gridSize; ++j){
                         
-                        buffVec.push_back(buffColVecByIdx[pixelIndexMatrix[i][j] - 1]);
+                        idx = getLinearIndex(i, j, gridSize);
+
+                        // if (i > 15000) {
+                        //         std::cout << i << "_" << j << "_" << pixelIndexMatrix[i][j] << std::endl;
+                        //         std::cout << "pushing" << std::endl;
+                        // }
+
+                        buffVec.push_back(buffColVecByIdx[pixelIndexMatrix[idx]]);
                 }
 
                 buffMat.push_back(buffVec);
@@ -78,13 +86,6 @@ std::vector< std::vector<SubsurfColumn> > Grid::initializeSubsurface(){
         }
 
         addLogEntry("Finished creating grid.", true);
-        // for (int i = 0; i < gridSize; ++i){
-        //         std::cout << "hi" << std::endl;
-        //         for (int j = 0; j < gridSize; ++j){
-                        
-        //                 buffMat[i][j].subsurfLayers.back().print();
-        //         }
-        // }
 
         return buffMat;
 }
@@ -182,12 +183,12 @@ void Grid::formCrater(Crater &crater){
                                 crater.ejectedMass.consolidate(subsurfColumns.at(j).at(i).integrateColumnComposition(leftToRemove));
                                 subsurfColumns.at(j).at(i).removeMaterial(leftToRemove);
                                 
-                                if (crater.ejectedMass.iceFraction > 0.01) {
+                                if ((crater.ejectedMass.iceFraction > 0.001) || (crater.ejectedMass.sootFraction > 0.001)) {
                                         // std::cout << "before " << crater.ejectedMass.iceFraction << std::endl;
                                         // Adjust the composition of the ejected material, by removing ice lost through heating:
                                         crater.ejectedMass.changeComposition(crater.ejectedMass.regolithFraction, 
                                                 crater.ejectedMass.iceFraction * ejectaVolatileRetention, 
-                                                crater.ejectedMass.sootFraction);
+                                                crater.ejectedMass.sootFraction * ejectaSootRetention);
                                         // std::cout << "after "<< crater.ejectedMass.iceFraction << std::endl;
                                 }
                         }       
@@ -437,10 +438,13 @@ bool Grid::calculatePermanentShadow(int faceti, int facetj, double solarZenithAn
 // Print:
 /////////
 // Print surface to file:
-void Grid::printSurface(int index){
+void Grid::printSurface(int index, bool isfinal){
         std::ofstream xFile;
         std::ofstream yFile;
         std::ofstream elevationFile;
+        std::ofstream regolithFractionFile;
+        std::ofstream iceFractionFile;
+        std::ofstream sootFractionFile;
 
         std::string index_str = std::string(
                 std::to_string(int(endTime / printTimeStep)).length() -
@@ -448,9 +452,16 @@ void Grid::printSurface(int index){
                 ) + std::to_string(index);
 
         std::string elevationFileName = "./output/elevation_" + index_str + ".txt";
-        elevationFile.open(elevationFileName, std::ios_base::out);
+        std::string regolithFractionFileName = "./output/regolithFraction_" + index_str + ".txt";
+        std::string iceFractionFileName = "./output/iceFraction_" + index_str + ".txt";
+        std::string sootFractionFileName = "./output/sootFraction_" + index_str + ".txt";
 
-        if (index == 0) {
+        elevationFile.open(elevationFileName, std::ios_base::out);
+        regolithFractionFile.open(regolithFractionFileName, std::ios_base::out);
+        iceFractionFile.open(iceFractionFileName, std::ios_base::out);
+        sootFractionFile.open(sootFractionFileName, std::ios_base::out);
+
+        if (isfinal) {
                 // For the last print, print x,y vectors:
                 std::string xFileName = "./output/x.txt";
                 std::string yFileName = "./output/y.txt";
@@ -465,43 +476,19 @@ void Grid::printSurface(int index){
         for (int i = 0; i < gridSize; ++i) {
                 for (int j = 0; j < gridSize; ++j) {
                         elevationFile << subsurfColumns.at(j).at(i).getSurfaceElevation() << ",";
+                        regolithFractionFile << subsurfColumns.at(j).at(i).subsurfLayers.back().regolithFraction << ",";
+                        iceFractionFile << subsurfColumns.at(j).at(i).subsurfLayers.back().iceFraction << ",";
+                        sootFractionFile << subsurfColumns.at(j).at(i).subsurfLayers.back().sootFraction << ",";
                 }
                 elevationFile << "\n";
-        }
-}
-
-// Print shadow matrix to file:
-void Grid::printShadow(int index){
-        std::ofstream xFile;
-        std::ofstream yFile;
-        std::ofstream shadowFile;
-
-        std::string elevationFileName = "./output/shadow_" + std::to_string(index) + ".txt";
-        shadowFile.open(elevationFileName, std::ios_base::out);
-
-        if (index == 0) {
-                // For the last print, print x,y vectors:
-                std::string xFileName = "./output/x.txt";
-                std::string yFileName = "./output/y.txt";
-                xFile.open(xFileName, std::ios_base::out);
-                yFile.open(yFileName, std::ios_base::out);
-                for (int i = 0; i < gridSize; i++) {
-                        xFile << x.at(i) << ",";
-                        yFile << y.at(i) << ",";
-                }
-        }
-
-        for (int i = 0; i < gridSize; ++i) {
-                for (int j = 0; j < gridSize; ++j) {
-                        shadowFile << subsurfColumns.at(j).at(i).isPermShadow << ",";
-                }
-                shadowFile << "\n";
+                regolithFractionFile << "\n";
+                iceFractionFile << "\n";
+                sootFractionFile << "\n";
         }
 }
 
 // Print subsurface to file:
-void Grid::printGrid(int index){
-
+void Grid::printSubsurface(int index){
         SubsurfColumn col =  SubsurfColumn();
         std::fstream outputFile;
         std::string output_filename = "./output/output_" + std::to_string(index) + ".out";

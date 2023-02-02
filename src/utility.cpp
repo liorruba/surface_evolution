@@ -23,9 +23,9 @@
 // Get current time
 uint64_t get_time()
 {
-  struct timespec t;
-  clock_gettime(CLOCK_MONOTONIC, &t);
-  return t.tv_sec * 1e9 + t.tv_nsec;
+      struct timespec t;
+      clock_gettime(CLOCK_MONOTONIC, &t);
+      return t.tv_sec * 1e9 + t.tv_nsec;
 }
 
 // Generate a uniformly distributed random number:
@@ -50,14 +50,14 @@ std::vector<double> linspace(double low, double high, int numberOfElements) {
 // Creates a logarithmic spaced vector of length numberOfElements over a range of expoenents defined by [low,high].
 // The first element is the length of the array.
 std::vector<double> logspace(double low, double high, int numberOfElements, double base) {
-  std::vector<double> logVec(numberOfElements);
-  std::vector<double> exponents = linspace(low, high, numberOfElements);
+      std::vector<double> logVec(numberOfElements);
+      std::vector<double> exponents = linspace(low, high, numberOfElements);
 
-  for (int i = 0; i < numberOfElements; i++){
-    logVec[i] = pow(base, exponents[i]);
-  }
+      for (int i = 0; i < numberOfElements; i++){
+            logVec[i] = pow(base, exponents[i]);
+    }
 
-  return logVec;
+    return logVec;
 }
 
 // A simple progress bar 
@@ -72,7 +72,7 @@ void progressBar(long progress, long total) {
                 res = total - 1;
 
         for (long i = 0; i < res; i++) {
-                
+
                 if (i < (progress / (total / res)))
                         bar += "=";
                 else
@@ -87,67 +87,67 @@ void progressBar(long progress, long total) {
 
 // Linear interpolation. Evaluates y(reqX) by interpolation the vector y(x).
 double linearInterp(std::vector<double> x, std::vector<double> y, double reqX){
-  int i = 0;
-  double xPrev = x[0], xNext = x[1], yPrev = y[0], yNext = y[1];
+      int i = 0;
+      double xPrev = x[0], xNext = x[1], yPrev = y[0], yNext = y[1];
 
   // Check if in range:
-  if (reqX < x.front() || reqX > x.back()){
-    return 0;
-  }
+      if (reqX < x.front() || reqX > x.back()){
+            return 0;
+    }
 
-  while (!(reqX >= xPrev & reqX <= xNext)){
-    xPrev = x[i]; xNext = x[i+1];
-    yPrev = y[i]; yNext = y[i+1];
-    i++;
-  }
+    while (!(reqX >= xPrev & reqX <= xNext)){
+            xPrev = x[i]; xNext = x[i+1];
+            yPrev = y[i]; yNext = y[i+1];
+            i++;
+    }
 
   // Linearly interpolate between points:
-  double t = (reqX - xPrev)/(xNext - xPrev);
+    double t = (reqX - xPrev)/(xNext - xPrev);
 
-  return (1 - t) * yPrev + t * yNext;
+    return (1 - t) * yPrev + t * yNext;
 }
 
 // Rotate vector around x axis
 Eigen::Vector3d rotate_vector_x(Eigen::Vector3d v, double alpha) {
   // Create rotation matrix
-  Eigen::AngleAxisd rot_x(alpha, Eigen::Vector3d::UnitX());
+      Eigen::AngleAxisd rot_x(alpha, Eigen::Vector3d::UnitX());
 
   // Rotate vector
-  Eigen::Vector3d rotated_v = rot_x * v;
+      Eigen::Vector3d rotated_v = rot_x * v;
 
-  return rotated_v;
+      return rotated_v;
 }
 
 // Rotate vector around x axis
 Eigen::Vector3d rotate_vector_y(Eigen::Vector3d v, double alpha) {
   // Create rotation matrix
-  Eigen::AngleAxisd rot_y(alpha, Eigen::Vector3d::UnitY());
+      Eigen::AngleAxisd rot_y(alpha, Eigen::Vector3d::UnitY());
 
   // Rotate vector
-  Eigen::Vector3d rotated_v = rot_y * v;
+      Eigen::Vector3d rotated_v = rot_y * v;
 
-  return rotated_v;
+      return rotated_v;
 }
 
 // Rotate vector around z axis
 Eigen::Vector3d rotate_vector_z(Eigen::Vector3d v, double alpha) {
   // Create rotation matrix
-  Eigen::AngleAxisd rot_z(alpha, Eigen::Vector3d::UnitZ());
+      Eigen::AngleAxisd rot_z(alpha, Eigen::Vector3d::UnitZ());
 
   // Rotate vector
-  Eigen::Vector3d rotated_v = rot_z * v;
+      Eigen::Vector3d rotated_v = rot_z * v;
 
-  return rotated_v;
+      return rotated_v;
 }
 
 // Calculate the norm of a vector
 double vecNorm(std::vector<double> vec){
-  return sqrt(pow(vec[0],2) + pow(vec[1],2) + pow(vec[2],2));
+      return sqrt(pow(vec[0],2) + pow(vec[1],2) + pow(vec[2],2));
 }
 
 // Angle between xy plane and vector
 double xyPlaneVecAngle(std::vector<double> vec){
-  return M_PI/2 - asin(fabs(vec[2])/vecNorm(vec));
+      return M_PI/2 - asin(fabs(vec[2])/vecNorm(vec));
 }
 
 ////////////
@@ -194,13 +194,16 @@ std::vector<var> readConfig(){
         return varList;
 }
 
-// Read layers file:
+
+// This function reads the layers file and stores the user input 
+// layers into a vector, whose elements are the pixel index, layer thickness, 
+// regolith fraction, ice fraction and soot fraction
 std::vector< std::vector<double> > readLayers(){
         std::ifstream layersFile;
         std::vector< std::vector<double> > layersList;
 
         layersFile.open("./config/layers.cfg");
-                addLogEntry("Initializing layers file", true);
+        addLogEntry("Initializing layers file", true);
 
         if (!layersFile) {
                 addLogEntry("Cannot read layers file.", true);
@@ -244,59 +247,53 @@ std::vector< std::vector<double> > readLayers(){
         return layersList;
 }
 
-std::vector< std::vector<int> > readPixelIndex(){
+//
+// The pixel index matrix is used to represent spatial patterns 
+// in the initial conditions of the input surface (e.g. a cold spot)
+//
+// This function reads input values to the pixel index matrix,
+// which is represented as a 1-d vector of 8 bit ints, with size 
+// (1, gridSize^2).
+//
+std::vector<int8_t> readPixelIndex(){
         int gridSize = regionWidth / resolution;
-        std::ifstream pxIdxFile("./config/pixelIndex.cfg");
-        std::vector< std::vector<int> > pixelsIndexMatrix;
+        std::ifstream pxIdxFile("./config/pixelIndex.cfg", std::ios::binary);
+        std::vector<int8_t> pixelsIndexMatrix;
 
         pxIdxFile.open("./config/pxIdxFile.cfg");
-        addLogEntry("Initializing pixel indexes file", true);
 
         // If the pixel index file doesn't exist, create a matrix of 1's
         if (!pxIdxFile) {
                 addLogEntry("Cannot read pixel indexes file. Creating a uniform subsurface grid...", true);
 
-                std::vector<int> row;
-                for (int i = 0; i < gridSize; ++i) {
-                        for (int j = 0; j < gridSize; ++j) {
-                                row.push_back(1);
-                        }
-                        pixelsIndexMatrix.push_back(row);
+                for (int i = 0; i < pow(gridSize, 2); ++i) {
+                        pixelsIndexMatrix.push_back(1);
+
+                        progressBar(i, gridSize);
                 }
         }
         // If it exists, read the file:
         else {
-                addLogEntry("Reading pixel indexes from file.", true);
-                std::vector<int> row;
-                std::string line;
+                int8_t value;
 
-                while(getline(pxIdxFile, line)) {
-                        std::vector<int> row;
-                        int pxIdx;
-                        std::stringstream ss(line);
+                // Read file into pixelsIndexMatrix (represented as a 1-d vector):  
+                int sz = 0;
+                while (pxIdxFile.read((char*) &value, sizeof(int8_t))) {
+                        pixelsIndexMatrix.push_back(value);
+                        sz++;
+                }
+                std::cout << sz << std::endl;
 
-                        while(ss>>pxIdx) {
-                                row.push_back(pxIdx);
-
-                                if (pxIdx == 0) {
-                                        throw std::runtime_error("Input pixel indexes must be 1-based.");
-                                }
-
-                        }
-                        pixelsIndexMatrix.push_back(row);
+                // Check the file has the same size as set by the user:
+                if (gridSize != (int) sqrt(sz)) {
+                        addLogEntry("Size of the input pixel matrix must equal the grid size, given by regionWidth/resolution. Terminating.", false);
+                        throw std::runtime_error("Size of the input pixel matrix must equal the grid size, given by regionWidth/resolution.");
                 }
         }
-        
-        pxIdxFile.close();
-        // Make sure the size of the pixel index matrix matches the size set by the user:
-        if ((int)pixelsIndexMatrix.size() != gridSize) {
-                addLogEntry("Size of the input pixel matrix must equal the grid size, given by regionWidth/resolution. Terminating.", false);
-                throw std::runtime_error("Size of the input pixel matrix must equal the grid size, given by regionWidth/resolution.");
-        }
 
+        pxIdxFile.close();
         return pixelsIndexMatrix;
 }
-
 
 // Get variable from list:
 double setVariable(std::vector<var> varList, std::string varName){
@@ -312,4 +309,9 @@ double setVariable(std::vector<var> varList, std::string varName){
         }
 // If variable was not found:
         return -1;
+}
+
+// Convert 2-d to linear index
+int getLinearIndex(int i, int j, int numCols) {
+      return i * numCols + j;
 }

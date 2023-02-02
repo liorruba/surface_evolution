@@ -10,6 +10,7 @@ extern bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive
 extern bool isEmplaceSecondaries; // Should emplace secondaries? Computationally extensive.
 extern bool runTests; // Run tests?
 extern int randomSeed; // Random number generator seed
+extern bool isPrintSubsurface;
 
 // Crater formation variables:
 extern double depthToDiameter; // Dimensionless ratio
@@ -19,6 +20,7 @@ extern double numberOfZModelShells; // Number of shells in z model (for ejecta c
 extern int craterProfileType; // Chosen crater profile
 extern int ejectaSpread; // The spread of the ejecta in crater radii
 extern double ejectaVolatileRetention; // The fraction of volatiles that remain in the caterr ejecta
+extern double ejectaSootRetention; // The fraction of soot that remain in the caterr ejecta
 extern double slope_secondaries; // The spread of the ejecta in crater radii
 extern double iceDensity; // The density of ice
 extern double regolithDensity; // The density of ice
