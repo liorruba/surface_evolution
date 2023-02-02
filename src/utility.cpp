@@ -86,11 +86,11 @@ double linearInterp(std::vector<double> x, std::vector<double> y, double reqX){
       double xPrev = x[0], xNext = x[1], yPrev = y[0], yNext = y[1];
 
   // Check if in range:
-      if (reqX < x.front() || reqX > x.back()){
+      if ((reqX < x.front()) || (reqX > x.back())){
             return 0;
     }
 
-    while (!(reqX >= xPrev & reqX <= xNext)){
+    while (!((reqX >= xPrev) & (reqX <= xNext))){
             xPrev = x[i]; xNext = x[i+1];
             yPrev = y[i]; yNext = y[i+1];
             i++;
