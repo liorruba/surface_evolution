@@ -5,7 +5,7 @@ BUILD    := ./build
 OBJ_DIR  := $(BUILD)/obj
 APP_DIR  := $(BUILD)/apps
 TARGET   := regolit_main.run
-INCLUDE  := -I/usr/local/include/Eigen -Iinclude/
+INCLUDE  := -Iinclude/
 SRC 	 := $(wildcard src/*.cpp)
 OBJECTS  := $(SRC:%.cpp=$(OBJ_DIR)/%.o)
 

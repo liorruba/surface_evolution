@@ -15,11 +15,6 @@
 #include "../include/log.hpp"
 
 
-#include<alloca.h>
-#include<Eigen/Dense>
-#include <Eigen/Geometry>
-
-
 // Get current time
 uint64_t get_time()
 {

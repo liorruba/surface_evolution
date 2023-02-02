@@ -119,9 +119,6 @@ void Grid::formCrater(Crater &crater){
         if(jInit < 0) jInit = 0;
         if(jFinal > gridSize) jFinal = gridSize;
 
-        // Compute the slope the craters is formed on
-        // auto [craterSlope, craterAspect] = calculateSlope(crater);
-
         // Create a vector of tuples containing the subgrid indexes (i, j) and their radial distances from the center
         std::vector<std::tuple<int, int, double>> indexes;
         
@@ -319,44 +316,6 @@ void Grid::updateExistingCratersDepth(Crater &crater) {
                         }
                 }
         }
-}
-
-// Compute the slope and aspect the crater will rest on:
-std::tuple<double, double> Grid::calculateSlope(const Crater crater){
-        // Three points define a surface:
-        double x1 = crater.xLocation;
-        double y1 = crater.yLocation;
-        double z1 = getSurfaceElevationAtPoint(x1, y1);
-
-        double x2 = crater.xLocation + 2 * crater.finalRadius;
-        double y2 = crater.yLocation - 2 * crater.finalRadius;
-        double z2 = getSurfaceElevationAtPoint(x2, y2);
-
-        double x3 = crater.xLocation - 2 * crater.finalRadius;
-        double y3 = crater.yLocation - 2 * crater.finalRadius;
-        double z3 = getSurfaceElevationAtPoint(x3, y3);
-
-        Eigen::Vector3d p1(x1, y1, z1);
-        Eigen::Vector3d p2(x2, y2, z2);
-        Eigen::Vector3d p3(x3, y3, z3);
-
-        Eigen::Vector3d v1 = p2 - p1;
-        Eigen::Vector3d v2 = p3 - p1;
-
-        Eigen::Vector3d surfNormal = v1.cross(v2);
-        surfNormal.normalize();
-
-        Eigen::Vector3d up(0, 0, 1); 
-        Eigen::Vector3d east(1, 0, 0);
-
-        double slope = acos(surfNormal.dot(up)); 
-        double aspect = acos(surfNormal.dot(east));
-
-        // if slope > 90, wrap angle:
-        if (slope > (M_PI / 2)) {
-                slope = M_PI - slope;
-        }
-        return {slope, aspect};
 }
 
 ///////////////////
