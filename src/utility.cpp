@@ -102,38 +102,6 @@ double linearInterp(std::vector<double> x, std::vector<double> y, double reqX){
     return (1 - t) * yPrev + t * yNext;
 }
 
-// Rotate vector around x axis
-Eigen::Vector3d rotate_vector_x(Eigen::Vector3d v, double alpha) {
-  // Create rotation matrix
-      Eigen::AngleAxisd rot_x(alpha, Eigen::Vector3d::UnitX());
-
-  // Rotate vector
-      Eigen::Vector3d rotated_v = rot_x * v;
-
-      return rotated_v;
-}
-
-// Rotate vector around x axis
-Eigen::Vector3d rotate_vector_y(Eigen::Vector3d v, double alpha) {
-  // Create rotation matrix
-      Eigen::AngleAxisd rot_y(alpha, Eigen::Vector3d::UnitY());
-
-  // Rotate vector
-      Eigen::Vector3d rotated_v = rot_y * v;
-
-      return rotated_v;
-}
-
-// Rotate vector around z axis
-Eigen::Vector3d rotate_vector_z(Eigen::Vector3d v, double alpha) {
-  // Create rotation matrix
-      Eigen::AngleAxisd rot_z(alpha, Eigen::Vector3d::UnitZ());
-
-  // Rotate vector
-      Eigen::Vector3d rotated_v = rot_z * v;
-
-      return rotated_v;
-}
 
 // Calculate the norm of a vector
 double vecNorm(std::vector<double> vec){
