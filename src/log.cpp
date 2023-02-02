@@ -5,6 +5,7 @@
 #include<ctime>
 #include <fstream>
 #include <chrono>
+#include <iomanip>
 #include "../include/log.hpp"
 
 // Log file:
