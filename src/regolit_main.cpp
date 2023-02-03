@@ -356,6 +356,7 @@ int main() {
                 if (i%numberOfCratersInTimestep == 0) {
                         // Pring z matrix:
                         grid.printSurface(printIndex, false);
+                        grid.printIntegratedSubsurface(0.2, printIndex);
 
                         if (isPrintSubsurface) {
                                 grid.printSubsurface(printIndex);

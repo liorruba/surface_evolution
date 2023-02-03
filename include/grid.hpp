@@ -59,6 +59,7 @@ void formCrater(Crater &crater);
 void emplaceEjecta(Crater &crater);
 void printSurface(int index, bool isfinal);
 void printSubsurface(int index);
+void printIntegratedSubsurface(double depth, int index);
 void updateExistingCratersDepth(Crater &crater);
 bool calculatePermanentShadow(int faceti, int facetj, double solarZenith);
 void printExistingCratersToHistogram(double bins);

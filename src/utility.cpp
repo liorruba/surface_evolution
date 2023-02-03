@@ -238,9 +238,9 @@ std::vector<int8_t> readPixelIndex(){
         // If it exists, read the file:
         else {
                 int8_t value;
-
+                addLogEntry("Reading pixel index matrix...", true);
                 // Read file into pixelsIndexMatrix (represented as a 1-d vector):  
-                int sz = 0;
+                long sz = 0;
                 while (pxIdxFile.read((char*) &value, sizeof(int8_t))) {
                         pixelsIndexMatrix.push_back(value);
                         sz++;

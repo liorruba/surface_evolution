@@ -246,6 +246,7 @@ void Grid::emplaceEjecta(Crater &crater){
         }
 }
 
+// Get the surface elevation at a specific point on the surface:
 double Grid::getSurfaceElevationAtPoint(double pt_x, double pt_y){
         // Get indices of point (x,y):
         int i = std::lower_bound(x.begin(), x.end(), pt_x) - x.begin();
@@ -259,6 +260,7 @@ double Grid::getSurfaceElevationAtPoint(double pt_x, double pt_y){
         return subsurfColumns.at(j).at(i).getSurfaceElevation();
 }
 
+// Update the stored depth of an existing crater
 void Grid::updateExistingCratersDepth(Crater &crater) {
         double dist;
         // query point
@@ -327,7 +329,7 @@ double Grid::craterParabolicDepthProfile(double craterRadius, double distanceFro
 
 }
 
-// Bowl shaped:
+// Bowl shaped (hemispherical):
 double Grid::craterSphericalDepthProfile(double craterRadius, double distanceFromCraterCenter){
         double craterDepth = 2 * craterRadius * depthToDiameter;
         double sphereRadius = (pow(craterRadius,2) + pow(craterDepth,2)) / 2 / craterDepth;
@@ -442,6 +444,46 @@ void Grid::printSurface(int index, bool isfinal){
                 iceFractionFile << "\n";
                 sootFractionFile << "\n";
         }
+
+        elevationFile.close();
+        regolithFractionFile.close();
+        iceFractionFile.close();
+        sootFractionFile.close();
+}
+
+void Grid::printIntegratedSubsurface(double depth, int index){
+        std::ofstream regolithFractionFile;
+        std::ofstream iceFractionFile;
+        std::ofstream sootFractionFile;
+        
+        std::string index_str = std::string(
+                std::to_string(int(endTime / printTimeStep)).length() -
+                std::to_string(index).length(), '0'
+                ) + std::to_string(index);
+
+        std::string regolithFractionFileName = "./output/regolithFraction_depth_" + index_str + ".txt";
+        std::string iceFractionFileName = "./output/iceFraction_depth_" + index_str + ".txt";
+        std::string sootFractionFileName = "./output/sootFraction_depth_" + index_str + ".txt";
+        regolithFractionFile.open(regolithFractionFileName, std::ios_base::out);
+        iceFractionFile.open(iceFractionFileName, std::ios_base::out);
+        sootFractionFile.open(sootFractionFileName, std::ios_base::out);
+
+        for (int i = 0; i < gridSize; ++i) {
+                for (int j = 0; j < gridSize; ++j) {
+                        Layer buffLayer = subsurfColumns.at(j).at(i).integrateColumnComposition(depth);
+
+                        regolithFractionFile << buffLayer.regolithFraction << ",";
+                        iceFractionFile << buffLayer.iceFraction << ",";
+                        sootFractionFile << buffLayer.sootFraction << ",";
+                }
+                regolithFractionFile << "\n";
+                iceFractionFile << "\n";
+                sootFractionFile << "\n";
+        }
+
+        regolithFractionFile.close();
+        iceFractionFile.close();
+        sootFractionFile.close();
 }
 
 // Print subsurface to file:
