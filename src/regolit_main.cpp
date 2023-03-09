@@ -43,6 +43,8 @@ bool isEmplaceSecondaries; // Should emplace ejecta? Computationally extensive.
 bool runTests; // Should run tests? 
 int randomSeed; // Random number generator seed
 bool isPrintSubsurface; // Print the full subsurface?
+double depthToIntegrate; // Depth to integrate when printing integrated subsurface
+double downsamplingResolution; // Downsample the results to produce smaller files
 
 // Crater formation variables:
 double depthToDiameter; // Dimensionless ratio, crater depth to diameter
@@ -76,6 +78,7 @@ double fluxConstant_c; // The Flux of impactors > 1 m, Ma^-1 m^-2
 double impactorDensity; // The impactor density in kg m^-3
 double meanImpactVelocity; // The impact velocity, kg s^-1
 double impactAngle;
+double angleOfRepose; // The regolith angle of repose (deg)
 
 // Surface physical properties:
 double g;
@@ -153,7 +156,9 @@ int main() {
         isEmplaceSecondaries = setVariable(varList, "isEmplaceSecondaries");
         runTests = setVariable(varList, "runTests");
         randomSeed = (int) setVariable(varList, "randomSeed");
+        downsamplingResolution = (double) setVariable(varList, "downsamplingResolution");
         isPrintSubsurface = (bool) setVariable(varList, "isPrintSubsurface");
+        depthToIntegrate = (double) setVariable(varList, "depthToIntegrate");
 
         // Crater formation variables:
         depthToDiameter = setVariable(varList, "depthToDiameter");
@@ -194,6 +199,7 @@ int main() {
         Ybar = setVariable(varList, "Ybar");
         mu = setVariable(varList, "mu");
         targetDensity = setVariable(varList, "targetDensity");
+        angleOfRepose = setVariable(varList, "angleOfRepose");
 
         // Initialize the random number generator seed:
         srand48(randomSeed);
@@ -241,7 +247,7 @@ int main() {
         //////////////////////
         // Start simulation //
         //////////////////////
-        addLogEntry("Starting simulation...", true);
+        addLogEntry("Running simulation...", true);
 
         for (long i = 0; i < totalNumberOfImpactors; ++i) {
                 // Randomize a new impactor:
@@ -261,7 +267,8 @@ int main() {
                         if (isEmplaceEjecta && !crater.ejectedMass.isEmpty()) {
                                 grid.emplaceEjecta(crater);
                         }
-                
+
+                        
                         // "Ghost" craters:
                         // If the crater exceeds the grid, wrap around it by creating a ghost crater.
                         // If a corner:
@@ -272,6 +279,7 @@ int main() {
                                 Crater ghost1 = Crater(impactor, xGhost, yGhost, crater.ejectedMass);
                                 Crater ghost2 = Crater(impactor, xGhost, crater.yLocation, crater.ejectedMass);
                                 Crater ghost3 = Crater(impactor, crater.xLocation, yGhost, crater.ejectedMass);
+
 
                                 grid.formCrater(ghost1);
                                 if (isEmplaceEjecta && !ghost1.ejectedMass.isEmpty()) {
@@ -287,7 +295,6 @@ int main() {
                                 if (isEmplaceEjecta && !ghost3.ejectedMass.isEmpty()) {
                                         grid.emplaceEjecta(ghost3);
                                 }
-                                
                         }
 
                         // If a side:
@@ -354,9 +361,11 @@ int main() {
 
                 // Print progress to a file:
                 if (i%numberOfCratersInTimestep == 0) {
+                        // Threshold slopes
+                        grid.thresholdSlopes(angleOfRepose);
                         // Pring z matrix:
                         grid.printSurface(printIndex, false);
-                        grid.printIntegratedSubsurface(0.2, printIndex);
+                        grid.printIntegratedSubsurface(depthToIntegrate, printIndex);
 
                         if (isPrintSubsurface) {
                                 grid.printSubsurface(printIndex);
@@ -378,6 +387,8 @@ int main() {
         cratersDepthHistogram.print("./output/depth_histogram.txt");
         grid.sublimateIce(); // Sublimate ice one last time
         grid.printSurface(printIndex, true);
+        grid.printIntegratedSubsurface(depthToIntegrate, printIndex);
+        
         if (isPrintSubsurface) {
                 grid.printSubsurface(printIndex);
         }

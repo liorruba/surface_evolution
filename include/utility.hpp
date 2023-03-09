@@ -28,6 +28,10 @@ void printMatrixToFile(double ** matrix, int gridSize, char * fileName);
 // Linear interpolation:
 double linearInterp(std::vector<double> x, std::vector<double> y, double reqX);
 
+// 2-d binning for printing a file with reduced resolution
+std::vector<double> bin_1d_vector(const std::vector<double> &input_vector, double bin_resolution);
+std::vector< std::vector<double> > bin_2d_vector(const std::vector<std::vector<double>> &input_vector, double bin_resolution);
+
 // Surface normal
 std::vector<double> surfNormal(std::vector<double> ptA, std::vector<double> ptB, std::vector<double> ptC);
 
@@ -35,6 +39,9 @@ double vecNorm(std::vector<double> vec);
 
 // Angle between vector and xy plane:
 double xyPlaneVecAngle(std::vector<double> vec);
+
+// Cumulative integration
+std::vector<double> cumtrapz(const std::vector<double>& x, const std::vector<double>& y);
 
 // Round up to the nearest grid value
 int roundUp(int numToRound, int multiple);

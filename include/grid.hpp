@@ -57,15 +57,16 @@ std::vector< std::vector<SubsurfColumn> > subsurfColumns;
 Grid(std::vector< std::vector<double> > _initLayersList, std::vector<int8_t> _pxIdxMat);
 void formCrater(Crater &crater);
 void emplaceEjecta(Crater &crater);
+void thresholdSlopes(double angleOfRepose);
 void printSurface(int index, bool isfinal);
 void printSubsurface(int index);
 void printIntegratedSubsurface(double depth, int index);
 void updateExistingCratersDepth(Crater &crater);
-bool calculatePermanentShadow(int faceti, int facetj, double solarZenith);
 void printExistingCratersToHistogram(double bins);
 void printExistingCraters();
 void sublimateIce();
 void depositLayer(Layer layer);
+// bool calculatePermanentShadow(int faceti, int facetj, double solarZenith);
 
 private:
 int gridSize;
@@ -74,6 +75,9 @@ double craterParabolicDepthProfile(double craterRadius, double distanceFromCrate
 double craterSphericalDepthProfile(double craterRadius, double distanceFromCraterCenter);
 double rimHeight(double craterRadius, double distanceFromCraterCenter);
 double getSurfaceElevationAtPoint(double x, double y);
+bool compareMaxSlope(std::vector< std::vector<double> > slopeMap, double maxSlope);
+std::vector < std::vector<double> > computeGradient(std::vector < std::vector<double> > Z);
+std::vector< std::vector<double> > linearSlopeDiffusion(std::vector< std::vector<double> > Z, double maxSlope, double K);
 std::tuple<double, double> calculateSlope(const Crater crater);
 std::vector< std::vector<double> > initLayersList;
 std::vector<int8_t> pixelIndexMatrix;

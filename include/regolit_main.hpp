@@ -10,7 +10,9 @@ extern bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive
 extern bool isEmplaceSecondaries; // Should emplace secondaries? Computationally extensive.
 extern bool runTests; // Run tests?
 extern int randomSeed; // Random number generator seed
-extern bool isPrintSubsurface;
+extern bool isPrintSubsurface; // Print subsurface? May be disk space demanding 
+extern double depthToIntegrate; // Depth to integrate when printing integrated subsurface
+extern double downsamplingResolution; // Downsample the results to produce smaller files
 
 // Crater formation variables:
 extern double depthToDiameter; // Dimensionless ratio
@@ -44,7 +46,8 @@ extern double minimumImpactorDiameter; // The smallest impactor in the distribut
 extern double fluxConstant_c; // The Flux of impactors > 1 m, Ma^-1 m^-2
 extern double impactorDensity; // The impactor density in kg m^-3
 extern double meanImpactVelocity; // The impact velocity, kg s^-1
-extern double impactAngle;
+extern double impactAngle; // The impact angle, degrees
+extern double angleOfRepose; // The regolith angle of repose, degrees
 
 // Surface physical properties:
 extern double g;
