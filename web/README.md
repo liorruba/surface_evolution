@@ -84,7 +84,7 @@ Logs: `journalctl -u regolit-web -f`. Health check: `curl http://127.0.0.1:8010/
 ## Limits
 
 Requests are validated against the ranges in `PARAMETERS` in `server.py`, and a run is refused if it
-would exceed 500 x 500 cells, 50 output steps or about 200,000 impacts. At most two runs execute at
+would exceed 500 x 500 cells, 500 output steps, 800 MB of output maps or about 200,000 impacts. At most two runs execute at
 a time (others wait, up to eight), each with a 120 s timeout. The full layer stacks are not written
 for web runs. Old runs are deleted once more than 200 are stored. All of these are environment
 variables or constants at the top of `server.py`.

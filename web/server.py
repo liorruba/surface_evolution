@@ -67,9 +67,12 @@ MAX_RUNS_KEPT = int(os.environ.get("REGOLIT_WEB_MAX_RUNS", "200"))
 AUTH_USER = os.environ.get("REGOLIT_WEB_USER", "")
 AUTH_PASSWORD = os.environ.get("REGOLIT_WEB_PASSWORD", "")
 
-# Hard limits protecting the server.
+# Hard limits protecting the server. Every saved step writes seven maps of the output grid, so the
+# number of steps is bounded through the total output size rather than by a fixed count.
 MAX_GRID_CELLS = 500 * 500
-MAX_STEPS = 50
+MAX_STEPS = 500
+MAX_OUTPUT_BYTES = 800 * 1024 * 1024
+MAPS_PER_STEP = 7
 MAX_IMPACTS = 200_000
 MAX_LAYER_ROWS = 40
 
@@ -84,9 +87,10 @@ COMPOSITION_COLORS = np.array([[0.62, 0.56, 0.48], [0.60, 0.84, 1.00], [0.10, 0.
 # axes are exactly square in pixels (the domain is square), so the image fills them.
 MAP_DPI = 110
 MAP_LAYOUTS = {
-    "with_colorbar": {"size": (6.6, 5.6), "axes": (0.11, 0.10, 0.82 * 5.6 / 6.6, 0.82), "cbar": (0.84, 0.10, 0.03, 0.82)},
-    "without_colorbar": {"size": (5.6, 5.6), "axes": (0.13, 0.10, 0.82, 0.82), "cbar": None},
+    "with_colorbar": {"size": (5.7, 4.8), "axes": (0.125, 0.11, 0.81 * 4.8 / 5.7, 0.81), "cbar": (0.845, 0.11, 0.03, 0.81)},
+    "without_colorbar": {"size": (4.8, 4.8), "axes": (0.14, 0.11, 0.81, 0.81), "cbar": None},
 }
+WIDE_FIG_SIZE = (8.6, 2.9)   # cross-sections and histograms
 
 # Parameters the UI exposes: name, label, unit, min, max, kind, description. Values not listed
 # here stay at the repository defaults (config/config.cfg).
@@ -100,7 +104,7 @@ PARAMETERS: List[Dict] = [
     dict(group="Time", name="endTime", label="Duration", unit="Ma", min=0.1, max=4500, kind="number",
          description="Simulated time."),
     dict(group="Time", name="printTimeStep", label="Output interval", unit="Ma", min=0.01, max=4500, kind="number",
-         description="Time between saved steps; at most 50 steps per run."),
+         description="Time between saved steps; up to 500 steps, bounded by the total output size."),
     dict(group="Time", name="randomSeed", label="Random seed", unit="", min=0, max=2**31 - 1, kind="int",
          description="Seed of the impactor sequence."),
     dict(group="Impactors", name="minimumImpactorDiameter", label="Minimum impactor diameter", unit="m", min=0.02, max=50, kind="number",
@@ -232,9 +236,14 @@ def validate(request: RunRequest) -> Tuple[Dict[str, float], Optional[List[List[
     if effective["downsamplingResolution"] < res:
         overrides["downsamplingResolution"] = res
         effective["downsamplingResolution"] = res
-    steps = math.ceil(effective["endTime"] / effective["printTimeStep"])
+    steps = math.ceil(effective["endTime"] / effective["printTimeStep"]) + 1
     if steps > MAX_STEPS:
         raise HTTPException(400, "{} output steps requested; the limit is {}. Increase the output interval.".format(steps, MAX_STEPS))
+    output_cells = round(width / effective["downsamplingResolution"]) ** 2
+    output_bytes = steps * output_cells * MAPS_PER_STEP * 8
+    if output_bytes > MAX_OUTPUT_BYTES:
+        raise HTTPException(400, "the run would write {:.0f} MB of maps ({} steps of {:,} cells); the limit is {:.0f} MB. Increase the output interval or the map output resolution.".format(
+            output_bytes / 2**20, steps, int(output_cells), MAX_OUTPUT_BYTES / 2**20))
     impacts = effective["fluxConstant_c"] * effective["minimumImpactorDiameter"] ** (-effective["slope_b"]) * width ** 2 \
         * effective["endTime"] * effective["earthFluxRatioCoefficient"]
     if impacts > MAX_IMPACTS:
@@ -519,8 +528,8 @@ def render_section(run_id: str, axis: str, at: float, depth: float, step: int) -
             other = (out.y, z[:, i])
 
     with PLOT_LOCK:
-        fig = themed_figure((9.9, 3.4))
-        ax = fig.add_axes((0.075, 0.17, 0.90, 0.72))
+        fig = themed_figure(WIDE_FIG_SIZE)
+        ax = fig.add_axes((0.08, 0.19, 0.895, 0.69))
         style_axes(ax)
         ax.add_collection(PolyCollection(polygons, facecolors=colors, edgecolors="none"))
         ax.plot(positions, surface, color=THEME["ink"], lw=0.9)
@@ -533,7 +542,7 @@ def render_section(run_id: str, axis: str, at: float, depth: float, step: int) -
         ax.set_xlabel("{} [m]".format("x" if axis == "x" else "y"))
         ax.set_ylabel("elevation [m]")
         line_name = "y = {:.1f} m (west-east)".format(at) if axis == "x" else "x = {:.1f} m (south-north)".format(at)
-        ax.set_title("Subsurface layering along {}, final state (t = {:g} Ma); mixed colors show mixed compositions".format(line_name, summary["times"][-1]), fontsize=9.5)
+        ax.set_title("Subsurface layering along {}, final state (t = {:g} Ma)".format(line_name, summary["times"][-1]), fontsize=9.5)
         legend = ax.legend(handles=handles, loc="lower right", fontsize=8, facecolor=THEME["figure"], edgecolor=THEME["grid"], labelcolor=THEME["ink"], ncol=len(handles))
         legend.get_frame().set_alpha(0.9)
         ax.grid(alpha=0.15, color=THEME["muted"])
@@ -549,8 +558,8 @@ def render_histograms(run_id: str) -> Path:
         return target
     out = output_of(run_id)
     with PLOT_LOCK:
-        fig = themed_figure((9.9, 3.4))
-        axes = [fig.add_axes((0.06, 0.17, 0.41, 0.72)), fig.add_axes((0.57, 0.17, 0.41, 0.72))]
+        fig = themed_figure(WIDE_FIG_SIZE)
+        axes = [fig.add_axes((0.07, 0.19, 0.40, 0.69)), fig.add_axes((0.585, 0.19, 0.40, 0.69))]
         for ax in axes:
             style_axes(ax)
         styles = [("craters", THEME["accent"], "-", 2.2, "craters formed"), ("existing_craters", "#7ed0a8", "--", 1.4, "craters visible at the end"), ("impactors", "#79a6ff", "-", 1.4, "impactors")]
@@ -641,7 +650,7 @@ async def meta() -> Dict:
         "map_kinds": {k: v[0] for k, v in MAP_KINDS.items()},
         "default_kind": "shaded_relief",
         "map_geometry": map_geometry(),
-        "limits": {"max_grid_cells": MAX_GRID_CELLS, "max_steps": MAX_STEPS, "max_impacts": MAX_IMPACTS, "max_layer_rows": MAX_LAYER_ROWS},
+        "limits": {"max_grid_cells": MAX_GRID_CELLS, "max_steps": MAX_STEPS, "max_output_mb": MAX_OUTPUT_BYTES // 2**20, "max_impacts": MAX_IMPACTS, "max_layer_rows": MAX_LAYER_ROWS},
     }
 
 
