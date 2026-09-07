@@ -9,6 +9,8 @@
 #include<cinttypes>
 #include<vector>
 #include <tuple>
+#include <algorithm>
+#include <stdexcept>
 #include<fstream>
 #include<sstream>
 #include "../include/regolit_main.hpp"
@@ -31,8 +33,14 @@ double randU(double low, double high)
 }
 
 // Creates a linearly spaced vector of length numberOfElements over a range defined by [low,high].
-// The first element is the length of the array.
 std::vector<double> linspace(double low, double high, int numberOfElements) {
+	if (numberOfElements <= 0) {
+		return std::vector<double>();
+	}
+	if (numberOfElements == 1) {
+		return std::vector<double>(1, low);
+	}
+
 	std::vector<double> linVec(numberOfElements);
 	double res = (high - low) / (double) (numberOfElements - 1);
 
@@ -43,8 +51,7 @@ std::vector<double> linspace(double low, double high, int numberOfElements) {
 	return linVec;
 }
 
-// Creates a logarithmic spaced vector of length numberOfElements over a range of expoenents defined by [low,high].
-// The first element is the length of the array.
+// Creates a logarithmic spaced vector of length numberOfElements over a range of exponents defined by [low,high].
 std::vector<double> logspace(double low, double high, int numberOfElements, double base) {
 	std::vector<double> logVec(numberOfElements);
 	std::vector<double> exponents = linspace(low, high, numberOfElements);
@@ -58,6 +65,10 @@ std::vector<double> logspace(double low, double high, int numberOfElements, doub
 
 // A simple progress bar:
 void progressBar(long progress, long total) {
+	if (total <= 1) {
+		return;
+	}
+
 	std::string bar;
 
 	// Set the bar resolution
@@ -81,46 +92,53 @@ void progressBar(long progress, long total) {
 		std::cout << std::endl;
 }
 
-// 2D Linear interpolation. Evaluates y(reqX) by interpolation the vector y(x).
-double linearInterp(std::vector<double> x, std::vector<double> y, double reqX){
-	int i = 0;
-	double xPrev = x[0], xNext = x[1], yPrev = y[0], yNext = y[1];
-
-  // Check if in range:
-	if ((reqX < x.front()) || (reqX > x.back())){
+// Linear interpolation. Evaluates y(reqX) from the table y(x), x ascending. Returns 0 outside the table.
+double linearInterp(const std::vector<double> &x, const std::vector<double> &y, double reqX){
+	if (x.size() < 2 || y.size() != x.size()) {
+		return 0;
+	}
+	if ((reqX < x.front()) || (reqX > x.back())) {
 		return 0;
 	}
 
-	while (!((reqX >= xPrev) & (reqX <= xNext))){
-		xPrev = x[i]; xNext = x[i+1];
-		yPrev = y[i]; yNext = y[i+1];
-		i++;
+	// First table point strictly to the right of reqX:
+	size_t k = std::upper_bound(x.begin(), x.end(), reqX) - x.begin();
+	if (k == 0) {
+		k = 1;
+	}
+	if (k >= x.size()) {
+		k = x.size() - 1;
 	}
 
-  // Linearly interpolate between points:
-	double t = (reqX - xPrev)/(xNext - xPrev);
+	const double dx = x[k] - x[k - 1];
+	if (dx <= 0) {
+		return y[k];
+	}
+	const double t = (reqX - x[k - 1]) / dx;
 
-	return (1 - t) * yPrev + t * yNext;
+	return (1 - t) * y[k - 1] + t * y[k];
+}
+
+// Number of cells per bin for the requested output resolution (1 = no downsampling).
+static int binSizeFor(double bin_resolution) {
+	if (bin_resolution < resolution) {
+		throw std::runtime_error("The downsampling resolution cannot be finer than the grid resolution.");
+	}
+	return std::max(1, (int) std::lround(bin_resolution / resolution));
 }
 
 // Simple 1-d grid with average pooling
 std::vector<double> bin_1d_vector(const std::vector<double> &input_vector, double bin_resolution) {
-	if (bin_resolution < resolution) {
-		throw std::runtime_error("The input resolution cannot be higher than the resampling resolution.");
-	}
-
-	int bin_size = bin_resolution / resolution;
-	int rows = input_vector.size();
-	int new_rows = std::ceil(rows / bin_size);
+	const int bin_size = binSizeFor(bin_resolution);
+	const int rows = input_vector.size();
+	const int new_rows = rows / bin_size;
 	std::vector<double> output_vector(new_rows, 0);
 
 	for (int i = 0; i < new_rows; ++i) {
-		int count = 0;
-		for (int ii = i * bin_size; ii < (i + 1) * bin_size && ii < rows; ++ii) {
+		for (int ii = i * bin_size; ii < (i + 1) * bin_size; ++ii) {
 			output_vector[i] += input_vector[ii];
-			count++;
 		}
-		output_vector[i] /= count;
+		output_vector[i] /= bin_size;
 	}
 
 	return output_vector;
@@ -128,27 +146,21 @@ std::vector<double> bin_1d_vector(const std::vector<double> &input_vector, doubl
 
 // Simple 2-d grid with average pooling
 std::vector< std::vector<double> > bin_2d_vector(const std::vector< std::vector<double> > &input_vector, double bin_resolution) {
-	if (bin_resolution < resolution) {
-		throw std::runtime_error("The input resolution cannot be higher than the resampling resolution.");
-	}
-
-	int bin_size = bin_resolution / resolution;
-	int rows = input_vector.size();
-	int cols = rows;
-	int new_rows = std::ceil(rows / bin_size);
-	int new_cols = new_rows;
+	const int bin_size = binSizeFor(bin_resolution);
+	const int rows = input_vector.size();
+	const int cols = rows > 0 ? (int) input_vector[0].size() : 0;
+	const int new_rows = rows / bin_size;
+	const int new_cols = cols / bin_size;
 	std::vector<std::vector<double>> output_vector(new_rows, std::vector<double>(new_cols, 0));
 
 	for (int i = 0; i < new_rows; ++i) {
 		for (int j = 0; j < new_cols; ++j) {
-			int count = 0;
-			for (int ii = i * bin_size; ii < (i + 1) * bin_size && ii < rows; ++ii) {
-				for (int jj = j * bin_size; jj < (j + 1) * bin_size && jj < cols; ++jj) {
+			for (int ii = i * bin_size; ii < (i + 1) * bin_size; ++ii) {
+				for (int jj = j * bin_size; jj < (j + 1) * bin_size; ++jj) {
 					output_vector[i][j] += input_vector[ii][jj];
-					count++;
 				}
 			}
-			output_vector[i][j] /= count;
+			output_vector[i][j] /= (double) bin_size * bin_size;
 		}
 	}
 
@@ -184,11 +196,11 @@ std::vector<var> readConfig(){
 	std::string line;
 	while (std::getline(configFile, line)) {
 		// Check if line is commented out:
-		if (line[0] == '/' && line[1] == '/')
+		if (line.compare(0, 2, "//") == 0)
 			continue;
 
 		// Check if line is empty:
-		if (line.empty())
+		if (line.find_first_not_of(" \t\r") == std::string::npos)
 			continue;
 
 		// Read strings as stream
@@ -197,7 +209,7 @@ std::vector<var> readConfig(){
 		std::string name; 
 		double value;
 		if (!(iss >> name >> value)) {
-			addLogEntry("Cannot read variable from config file.", true);
+			addLogEntry("Cannot read variable from config file: " + line, true);
 			exit(EXIT_FAILURE);
 		}
 
@@ -228,11 +240,11 @@ std::vector< std::vector<double> > readLayers(){
 	std::string line;
 	while (std::getline(layersFile, line)) {
 		// Check if line is commented out:
-		if (line[0] == '/' && line[1] == '/')
+		if (line.compare(0, 2, "//") == 0)
 			continue;
 
 		// Check if line is empty:
-		if (line.empty())
+		if (line.find_first_not_of(" \t\r") == std::string::npos)
 			continue;
 
 		// Read strings as stream
@@ -247,7 +259,7 @@ std::vector< std::vector<double> > readLayers(){
 
 		// First, read layer index:
 		if (!(iss >> pixelIndex >> thickness >> regolithFrac >> iceFrac >> sootFrac)) {
-			addLogEntry("Cannot read values from layers file.", true);
+			addLogEntry("Cannot read values from layers file: " + line, true);
 			exit(EXIT_FAILURE);
 		}
 		tempLayer.push_back(pixelIndex);
@@ -264,7 +276,7 @@ std::vector< std::vector<double> > readLayers(){
 
 
 //
-// This function computes the cumulative integral of the inpur vector using the trapzoid method
+// This function computes the cumulative integral of the input vector using the trapezoid method
 //
 std::vector<double> cumtrapz(const std::vector<double>& x, const std::vector<double>& y) {
 	// Allocate a vector to hold the cumulative integral values
@@ -291,39 +303,32 @@ std::vector<double> cumtrapz(const std::vector<double>& x, const std::vector<dou
 //
 // This function reads input values to the pixel index matrix,
 // which is represented as a 1-d vector of 8 bit ints, with size 
-// (1, gridSize^2).
+// (1, gridSize^2). If the file does not exist an empty vector is
+// returned and the grid is initialized uniformly.
 //
 std::vector<int8_t> readPixelIndex(){
-	int gridSize = regionWidth / resolution;
+	int gridSize = (int) std::lround(regionWidth / resolution);
 	std::ifstream pxIdxFile("./config/pixelIndex.cfg", std::ios::binary);
 	std::vector<int8_t> pixelsIndexMatrix;
 
-	// If the pixel index file doesn't exist, create a matrix of 1's
+	// If the pixel index file doesn't exist, the grid is uniform:
 	if (!pxIdxFile) {
 		addLogEntry("Cannot read pixel indexes file. Creating a uniform subsurface grid...", true);
-
-		for (int i = 0; i < pow(gridSize, 2); ++i) {
-			pixelsIndexMatrix.push_back(1);
-
-			progressBar(i, pow(gridSize, 2));
-		}
+		return pixelsIndexMatrix;
 	}
-	// If it exists, read the file:
-	else {
-		int8_t value;
-		addLogEntry("Reading pixel index matrix...", true);
-		// Read file into pixelsIndexMatrix (represented as a 1-d vector):  
-		long sz = 0;
-		while (pxIdxFile.read((char*) &value, sizeof(int8_t))) {
-			pixelsIndexMatrix.push_back(value);
-			sz++;
-		}
 
-		// Check the file has the same size as set by the user:
-		if (gridSize != (int) sqrt(sz)) {
-			addLogEntry("Size of the input pixel matrix must equal the grid size, given by regionWidth/resolution. Terminating.", false);
-			throw std::runtime_error("Size of the input pixel matrix must equal the grid size, given by regionWidth/resolution.");
-		}
+	// If it exists, read the file:
+	int8_t value;
+	addLogEntry("Reading pixel index matrix...", true);
+	// Read file into pixelsIndexMatrix (represented as a 1-d vector):  
+	while (pxIdxFile.read((char*) &value, sizeof(int8_t))) {
+		pixelsIndexMatrix.push_back(value);
+	}
+
+	// Check the file has the same size as set by the user:
+	if ((long) pixelsIndexMatrix.size() != (long) gridSize * gridSize) {
+		addLogEntry("Size of the input pixel matrix must equal the grid size, given by (regionWidth/resolution)^2. Terminating.", true);
+		throw std::runtime_error("Size of the input pixel matrix must equal the grid size, given by (regionWidth/resolution)^2.");
 	}
 
 	pxIdxFile.close();
@@ -336,17 +341,41 @@ double setVariable(std::vector<var> varList, std::string varName){
 
 	for (i = 0; i < varList.size(); i++) {
 		if (varList[i].name == varName) {
-			char logEntry[100];
-			sprintf(logEntry, "Getting variable %s with value %f.", varList[i].name.c_str(), varList[i].value);
-			addLogEntry(logEntry, false);
+			addLogEntry("Getting variable " + varList[i].name + " with value " + std::to_string(varList[i].value) + ".", false);
 			return varList[i].value;
 		}
 	}
-// If variable was not found:
-	return -1;
+
+	// If variable was not found, stop: a silent default would corrupt the run.
+	addLogEntry("ERROR: variable '" + varName + "' is missing from config/config.cfg.", true);
+	exit(EXIT_FAILURE);
+}
+
+// Get an optional variable from list:
+double setVariableOptional(std::vector<var> varList, std::string varName, double defaultValue){
+	for (size_t i = 0; i < varList.size(); i++) {
+		if (varList[i].name == varName) {
+			addLogEntry("Getting variable " + varList[i].name + " with value " + std::to_string(varList[i].value) + ".", false);
+			return varList[i].value;
+		}
+	}
+	addLogEntry("Variable '" + varName + "' is not in config/config.cfg; using the default " + std::to_string(defaultValue) + ".", true);
+	return defaultValue;
 }
 
 // Convert 2-d to linear index
 int getLinearIndex(int i, int j, int numCols) {
 	return i * numCols + j;
+}
+
+// Zero-padded index for output file names. The width is taken from the largest index that can
+// occur (the number of print steps plus the final print), so the padding never underflows.
+std::string formatOutputIndex(int index) {
+	const int maxIndex = (int) std::ceil(endTime / printTimeStep) + 2;
+	const size_t width = std::to_string(maxIndex).length();
+	std::string index_str = std::to_string(index);
+	if (index_str.length() < width) {
+		index_str.insert(0, width - index_str.length(), '0');
+	}
+	return index_str;
 }

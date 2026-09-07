@@ -1,3 +1,6 @@
+#pragma once
+#include <vector>
+
 // This file creates and manipulates a histogram "object".
 class Histogram {
   std::vector<double> bins;

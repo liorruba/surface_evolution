@@ -1,89 +1,77 @@
-#define BOOST_GEOMETRY_DISABLE_DEPRECATED_03_WARNING 1
+#pragma once
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <vector>
+#include "layer.hpp"
+#include "impactor.hpp"
+#include "crater.hpp"
+#include "subsurf_column.hpp"
+#include "spatial_index.hpp"
 
-#include <boost/geometry.hpp>
-#include <boost/geometry/geometries/point.hpp>
-#include <boost/geometry/index/rtree.hpp>
-
-// This class defines the surface properties:
-namespace bg = boost::geometry;
-namespace bgi = boost::geometry::index;
-
-// For the r-tree struct
-typedef bg::model::point<double, 2, bg::cs::cartesian> point;
-
-// For later, when doing cross product
-typedef bg::model::point<double, 3, bg::cs::cartesian> point3;
-
-///////////////
-// R-TREE SETUP
-///////////////
-// Struct for r-tree which stores index of insertion and location, to be later
-// accessed craters_vector vector.
-struct CraterRef {
-        size_t index;
-        point location;
+// Lightweight record of a formed crater, kept to track crater degradation over time.
+struct CraterRecord {
+        double x;
+        double y;
+        double finalRadius;
+        double finalDepth;       // current rim-to-floor depth
+        double finalDepth_init;  // depth at formation
+        double floorElevation;   // current surface elevation at the crater center
+        bool isVisible;          // false once the depth changed by more than 50% either way
 };
 
-template <>
-struct bgi::indexable<CraterRef>
-{
-        typedef point result_type;
-        point operator()(const CraterRef& c) const {
-                return c.location;
-        }
+// Reference plane z = z0 + sx * (x - x0) + sy * (y - y0) fitted to the pre-impact surface.
+struct ReferencePlane {
+        double x0, y0, z0, sx, sy;
+        double at(double x, double y) const { return z0 + sx * (x - x0) + sy * (y - y0); }
 };
-
-struct my_equal {
-        using result_type = bool;
-        bool operator() (CraterRef const& v1, CraterRef const& v2) const {
-                return v1.index == v2.index;
-        }
-};
-
-// typedef CraterRef value;
-typedef bgi::rtree< CraterRef, bgi::quadratic<16>, bgi::indexable<CraterRef>,  my_equal> rtree_t;
 
 ////////////////////////
 // Grid class definition
 ////////////////////////
 class Grid {
 
-public:   
+public:
 double area;
-std::vector<double> x;
+std::vector<double> x;   // cell-center coordinates, m
 std::vector<double> y;
-std::vector< std::vector<SubsurfColumn> > subsurfColumns;
+std::vector< std::vector<SubsurfColumn> > subsurfColumns;   // indexed [j (y index)][i (x index)]
 
 Grid(std::vector< std::vector<double> > _initLayersList, std::vector<int8_t> _pxIdxMat);
+// Forms a crater: carves the cavity, adds the rim and (if enabled) the ejecta blanket, records the
+// crater and updates the depths of older craters affected by it.
 void formCrater(Crater &crater);
-void emplaceEjecta(Crater &crater);
 void thresholdSlopes(double angleOfRepose);
 void printSurface(int index, bool isfinal);
 void printSubsurface(int index);
 void printIntegratedSubsurface(double depth, int index);
-void updateExistingCratersDepth(Crater &crater);
 void printExistingCratersToHistogram(double bins);
 void printExistingCraters();
 void sublimateIce();
 void depositLayer(Layer layer);
-// bool calculatePermanentShadow(int faceti, int facetj, double solarZenith);
+size_t numberOfVisibleCraters() const;
+const std::vector<CraterRecord>& craterRecords() const { return craters; }
 
 private:
 int gridSize;
-long numberOfCratersOnGrid;
-double craterParabolicDepthProfile(double craterRadius, double distanceFromCraterCenter);
-double craterSphericalDepthProfile(double craterRadius, double distanceFromCraterCenter);
-double rimHeight(double craterRadius, double distanceFromCraterCenter);
-double getSurfaceElevationAtPoint(double x, double y);
-bool compareMaxSlope(std::vector< std::vector<double> > slopeMap, double maxSlope);
-std::vector < std::vector<double> > computeGradient(std::vector < std::vector<double> > Z);
-std::vector< std::vector<double> > linearSlopeDiffusion(std::vector< std::vector<double> > Z, double maxSlope, double K);
-std::tuple<double, double> calculateSlope(const Crater crater);
 std::vector< std::vector<double> > initLayersList;
 std::vector<int8_t> pixelIndexMatrix;
+std::vector<CraterRecord> craters;
+BucketGrid craterIndex;
 
 std::vector< std::vector<SubsurfColumn> > initializeSubsurface();
-std::map<size_t, Crater *> cratersDict;
-
-rtree_t craters_rtree;
+void carveCavity(Crater &crater);
+void emplaceRimDropoff(const Crater &crater);
+void emplaceEjecta(const Crater &crater);
+void registerCrater(const Crater &crater);
+void updateExistingCratersDepth(const Crater &crater);
+ReferencePlane fitReferencePlane(const Crater &crater);
+void footprintIndexRange(double xc, double yc, double halfSize, int &iInit, int &iFinal, int &jInit, int &jFinal) const;
+double cavityDepthProfile(double craterRadius, double distanceFromCraterCenter) const;
+double craterParabolicDepthProfile(double craterRadius, double distanceFromCraterCenter) const;
+double craterSphericalDepthProfile(double craterRadius, double distanceFromCraterCenter) const;
+double getSurfaceElevationAtPoint(double x, double y) const;
+std::vector<double> surfaceElevationMap() const;
+void relaxSlopes(std::vector<double> &z, double maxSlope) const;
+void writeMatrix(const std::string &fileName, const std::vector< std::vector<double> > &matrix);
 };

@@ -3,25 +3,24 @@
 #include <cstdlib>
 #include <cmath>
 #include <vector>
-#include <cassert>
+#include <algorithm>
 #include <stdexcept>
 #include "../include/regolit_main.hpp"
-#include "../include/impactor.hpp"
 #include "../include/utility.hpp"
 #include "../include/layer.hpp"
-#include "../include/crater.hpp"
 #include "../include/subsurf_column.hpp"
 #include "../include/log.hpp"
 
-// The empty constructor returns a sursurface column with just regolith
+// The empty constructor returns a subsurface column with just regolith (the basement layer).
 SubsurfColumn::SubsurfColumn() {
         subsurfLayers.push_back(Layer(initialThickness, 1, 0, 0));
         // Initially set the surface elevation to the initial thickness
         surfaceElevation = initialThickness;
+        isPermShadow = false;
 }
 
 
-double SubsurfColumn::getSurfaceElevation() {
+double SubsurfColumn::getSurfaceElevation() const {
         return surfaceElevation;
 }
 
@@ -37,8 +36,10 @@ void SubsurfColumn::addLayer(Layer newLayer) {
                 throw std::invalid_argument("Cannot add layer with null composition.");
         }
 
-        // If new layer composition is the same as the topmost layer, consolidate:
-        if (newLayer.compareComposition(subsurfLayers.back())) {
+        // If the new layer has the same composition as the topmost layer, or is thinner than the
+        // minimum layer thickness (a veneer that should not redefine the surface composition), mix it
+        // into the topmost layer. Mass is conserved either way:
+        if (newLayer.thickness < minimumLayerThickness || newLayer.compareComposition(subsurfLayers.back())) {
                 subsurfLayers.back().consolidate(newLayer);
         }
 
@@ -51,21 +52,18 @@ void SubsurfColumn::addLayer(Layer newLayer) {
 }
 
 ////
-// Remove material from column:
+// Remove material from the top of the column. The bottom (basement) layer is never removed, so
+// the column always keeps a composition; the surface elevation is lowered by the full amount.
 void SubsurfColumn::removeMaterial(double depthToRemove) {
-        assert(depthToRemove >= 0);
+        if (depthToRemove <= 0) {
+                return;
+        }
 
         // Change the surface elevation:
         surfaceElevation -= depthToRemove;
 
-        if (surfaceElevation < 0) {
-                removeAllLayers();
-                surfaceElevation = 0;
-                return;
-        }
-
-        // Remove layers to some depth:
-        while ((depthToRemove >= subsurfLayers.back().thickness)) {
+        // Peel off whole layers from the top, keeping the basement:
+        while (subsurfLayers.size() > 1 && depthToRemove >= subsurfLayers.back().thickness) {
                 depthToRemove -= subsurfLayers.back().thickness;
                 subsurfLayers.pop_back();
         }
@@ -74,25 +72,32 @@ void SubsurfColumn::removeMaterial(double depthToRemove) {
 }
 
 ////
-// Integrate column composition, return single normalized layer:
-Layer SubsurfColumn::integrateColumnComposition(double depthToIntergrate) {
-        Layer buffLayer = Layer(0,0,0,0);
+// Integrate the column composition from the surface down to some depth and return it as a single
+// normalized layer whose thickness is the integrated depth. The basement layer is treated as
+// extending indefinitely downward.
+Layer SubsurfColumn::integrateColumnComposition(double depthToIntegrate) {
+        Layer buffLayer = Layer(0, 0, 0, 0);
 
-        std::vector<Layer>::iterator it = subsurfLayers.end();
-
-        it = subsurfLayers.end();
-        it--;
-
-        while(depthToIntergrate > (it->thickness) && (depthToIntergrate > 0)) {
-                buffLayer.consolidate(*it);
-                depthToIntergrate -= (it->thickness);
-                it--;
+        if (depthToIntegrate <= 0) {
+                const Layer &top = subsurfLayers.back();
+                return Layer(0, top.regolithFraction, top.iceFraction, top.sootFraction);
         }
-        Layer remainingLayer = *it;
-        remainingLayer.shrink(fabs((it->thickness) - depthToIntergrate));
-        buffLayer.consolidate(remainingLayer);
 
-        if ((buffLayer.regolithFraction == 0) && (buffLayer.sootFraction == 0) && (buffLayer.iceFraction == 0)){
+        for (size_t k = subsurfLayers.size(); k-- > 0;) {
+                const Layer &layer = subsurfLayers[k];
+                double take = (k == 0) ? depthToIntegrate : std::min(depthToIntegrate, layer.thickness);
+
+                if (take > 0) {
+                        buffLayer.consolidate(Layer(take, layer.regolithFraction, layer.iceFraction, layer.sootFraction));
+                        depthToIntegrate -= take;
+                }
+
+                if (depthToIntegrate <= 0) {
+                        break;
+                }
+        }
+
+        if (buffLayer.isEmpty()) {
                 throw std::invalid_argument("Integrated layer composition is null.");
         }
 
@@ -119,9 +124,4 @@ void SubsurfColumn::print(bool isNiceInterface) {
                         std::cout << std::endl;
                 }
         }
-}
-
-// Remove all the layers in the subsurface column:
-void SubsurfColumn::removeAllLayers() {
-        subsurfLayers.clear();
 }

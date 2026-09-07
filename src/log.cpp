@@ -6,6 +6,7 @@
 #include <fstream>
 #include <chrono>
 #include <iomanip>
+#include <string>
 #include "../include/log.hpp"
 
 // Log file:
@@ -22,7 +23,7 @@ void createLogFile(const char *path){
 }
 
 // Add a new log entry
-void addLogEntry(const char *str, bool dispOnScreen = false){
+void addLogEntry(const char *str, bool dispOnScreen){
   std::ofstream logFile;
   // Logging variables:
   logFile.open("log/log.txt", std::ios_base::app); // Append to log file.
@@ -32,4 +33,8 @@ void addLogEntry(const char *str, bool dispOnScreen = false){
   logFile << std::put_time(localtime(&now), "%F_%T") << "\t" << str << std::endl; // Write to log file.
 
   if (dispOnScreen) std::cout << std::put_time(localtime(&now), "%F_%T") << "\t" << str << std::endl;
+}
+
+void addLogEntry(const std::string &str, bool dispOnScreen){
+  addLogEntry(str.c_str(), dispOnScreen);
 }

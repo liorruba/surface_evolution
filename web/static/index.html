@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REGOLIT</title>
+<style>
+  :root { --bg: #f5f4f0; --panel: #ffffff; --ink: #1f2328; --muted: #6a737d; --line: #d9d6cf; --accent: #2f5d8a; --accent-ink: #ffffff; --warn: #b3261e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+  header { background: #1c2733; color: #f2f4f7; padding: 16px 24px; }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: 0.02em; }
+  header p { margin: 4px 0 0; color: #b7c2cf; font-size: 13px; }
+  main { display: grid; grid-template-columns: 380px 1fr; gap: 20px; padding: 20px 24px; max-width: 1500px; margin: 0 auto; }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  details { border-top: 1px solid var(--line); padding: 6px 0; }
+  details:first-of-type { border-top: none; }
+  summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+  .row { display: grid; grid-template-columns: 1fr 120px; gap: 8px; align-items: center; padding: 3px 0; }
+  .row label { color: var(--ink); }
+  .row small { display: block; color: var(--muted); font-size: 11.5px; }
+  input[type=number], select { width: 100%; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; font: inherit; background: #fff; }
+  input.invalid { border-color: var(--warn); }
+  table.layers { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 12.5px; }
+  table.layers th, table.layers td { padding: 2px 3px; text-align: center; }
+  table.layers input { width: 100%; padding: 3px 4px; border: 1px solid var(--line); border-radius: 3px; font: inherit; }
+  table.layers button { padding: 0 6px; }
+  .actions { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: 0.55; cursor: default; }
+  #status { color: var(--muted); }
+  #status.error { color: var(--warn); }
+  .results h2 { margin: 0 0 8px; font-size: 16px; }
+  .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .controls input[type=range] { width: 260px; }
+  .figures { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 1250px) { .figures { grid-template-columns: 1fr; } }
+  .figures img { width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
+  .wide { grid-column: 1 / -1; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
+  .summary div { background: #f7f8fa; border-radius: 6px; padding: 6px 10px; }
+  .summary b { display: block; font-size: 16px; }
+  .summary span { color: var(--muted); font-size: 12px; }
+  .links a { margin-right: 14px; }
+  a { color: var(--accent); }
+  .hidden { display: none; }
+  footer { color: var(--muted); font-size: 12px; padding: 12px 24px 24px; max-width: 1500px; margin: 0 auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>REGOLIT</h1>
+  <p>REworking and Gardening Of Lunar Impacted Terrains: a Monte Carlo model of cratering, ejecta and regolith gardening with a layered subsurface.</p>
+</header>
+<main>
+  <section class="panel">
+    <form id="form" onsubmit="return false;">
+      <div id="groups"></div>
+      <details>
+        <summary>Initial subsurface layers</summary>
+        <small style="color:var(--muted)">Rows are bottom-up within a class: the first row of a class is the deepest layer, the last row is the surface. The model uses class 1 for the whole grid when it exists, otherwise class 0. Fractions are normalized.</small>
+        <table class="layers">
+          <thead><tr><th>class</th><th>thickness [m]</th><th>regolith</th><th>ice</th><th>soot</th><th></th></tr></thead>
+          <tbody id="layers"></tbody>
+        </table>
+        <button type="button" id="addLayer" style="margin-top:6px">Add layer</button>
+      </details>
+      <div class="actions">
+        <button type="button" class="primary" id="run">Run model</button>
+        <button type="button" id="reset">Reset defaults</button>
+        <span id="status"></span>
+      </div>
+    </form>
+    <details id="previous" style="margin-top:10px">
+      <summary>Previous runs</summary>
+      <ul id="runs" style="margin:6px 0; padding-left:18px; font-size:12.5px"></ul>
+    </details>
+  </section>
+
+  <section class="panel results">
+    <div id="empty">
+      <h2>Results</h2>
+      <p style="color:var(--muted)">Set the parameters and press <b>Run model</b>. Runs with the default parameters take about a second; large grids or long durations take longer. Results are kept on the server for a while and can be shared with the page link.</p>
+    </div>
+    <div id="results" class="hidden">
+      <h2 id="title">Run</h2>
+      <div class="summary" id="summary"></div>
+      <div class="controls">
+        <label>Map <select id="kind"></select></label>
+        <label>Step <input type="range" id="step" min="0" max="0" value="0"></label>
+        <span id="time"></span>
+        <button type="button" id="play">Play</button>
+      </div>
+      <div class="figures">
+        <img id="map" alt="map">
+        <div>
+          <img id="profile" alt="cross-section">
+          <p class="links" id="links"></p>
+        </div>
+        <img id="histograms" class="wide" alt="histograms">
+      </div>
+    </div>
+  </section>
+</main>
+<footer>
+  The model follows Richardson et al. (2009) and adds an efficient layered description of the subsurface. Source and documentation: the <code>surface_evolution</code> repository. Maps are indexed with x to the right and y upward; the domain is periodic.
+</footer>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let meta = null;
+  let current = null;
+  let playing = null;
+
+  function fmt(v) {
+    if (v === null || v === undefined) return "";
+    const a = Math.abs(v);
+    if (a !== 0 && (a < 1e-3 || a >= 1e6)) return Number(v).toExponential(3).replace(/\.?0+e/, "e");
+    return String(Math.round(v * 1e6) / 1e6);
+  }
+
+  function buildForm() {
+    const groups = {};
+    meta.parameters.forEach(p => { (groups[p.group] = groups[p.group] || []).push(p); });
+    const container = $("groups");
+    container.innerHTML = "";
+    let first = true;
+    for (const [group, params] of Object.entries(groups)) {
+      const details = document.createElement("details");
+      if (first) { details.open = true; first = false; }
+      const summary = document.createElement("summary");
+      summary.textContent = group;
+      details.appendChild(summary);
+      params.forEach(p => {
+        const row = document.createElement("div");
+        row.className = "row";
+        const label = document.createElement("label");
+        label.htmlFor = "p_" + p.name;
+        label.innerHTML = p.label + (p.unit ? " <span style='color:var(--muted)'>[" + p.unit + "]</span>" : "") +
+          (p.description ? "<small>" + p.description + "</small>" : "");
+        let input;
+        if (p.kind === "choice") {
+          input = document.createElement("select");
+          for (const [value, text] of Object.entries(p.choices)) {
+            const opt = document.createElement("option"); opt.value = value; opt.textContent = text; input.appendChild(opt);
+          }
+        } else if (p.kind === "bool") {
+          input = document.createElement("select");
+          [["0", "off"], ["1", "on"]].forEach(([value, text]) => { const opt = document.createElement("option"); opt.value = value; opt.textContent = text; input.appendChild(opt); });
+        } else {
+          input = document.createElement("input");
+          input.type = "number";
+          input.step = p.kind === "int" ? "1" : "any";
+          input.min = p.min; input.max = p.max;
+          input.title = "between " + p.min + " and " + p.max;
+        }
+        input.id = "p_" + p.name;
+        input.dataset.name = p.name;
+        row.appendChild(label);
+        row.appendChild(input);
+        details.appendChild(row);
+      });
+      container.appendChild(details);
+    }
+    setDefaults();
+  }
+
+  function setDefaults() {
+    meta.parameters.forEach(p => {
+      const input = $("p_" + p.name);
+      const v = meta.defaults[p.name];
+      input.value = (p.kind === "choice" || p.kind === "bool" || p.kind === "int") ? String(Math.round(v)) : fmt(v);
+      input.classList.remove("invalid");
+    });
+    setLayers(meta.layers);
+  }
+
+  function layerRow(values) {
+    const tr = document.createElement("tr");
+    values.forEach((v, k) => {
+      const td = document.createElement("td");
+      const input = document.createElement("input");
+      input.type = "number"; input.step = k === 0 ? "1" : "any"; input.value = fmt(v);
+      td.appendChild(input); tr.appendChild(td);
+    });
+    const td = document.createElement("td");
+    const remove = document.createElement("button");
+    remove.type = "button"; remove.textContent = "x"; remove.title = "remove layer";
+    remove.onclick = () => tr.remove();
+    td.appendChild(remove); tr.appendChild(td);
+    return tr;
+  }
+
+  function setLayers(rows) {
+    const body = $("layers");
+    body.innerHTML = "";
+    rows.forEach(r => body.appendChild(layerRow(r)));
+  }
+
+  function readLayers() {
+    const rows = [];
+    for (const tr of $("layers").querySelectorAll("tr")) {
+      const values = [...tr.querySelectorAll("input")].map(i => parseFloat(i.value));
+      if (values.some(v => Number.isNaN(v))) throw new Error("every layer cell needs a number");
+      rows.push(values);
+    }
+    if (rows.length === 0) throw new Error("at least one layer is required");
+    return rows;
+  }
+
+  function readParameters() {
+    const parameters = {};
+    let bad = null;
+    meta.parameters.forEach(p => {
+      const input = $("p_" + p.name);
+      const v = parseFloat(input.value);
+      const ok = Number.isFinite(v) && v >= p.min && v <= p.max;
+      input.classList.toggle("invalid", !ok);
+      if (!ok && !bad) bad = p.label + " must be between " + p.min + " and " + p.max;
+      parameters[p.name] = v;
+    });
+    if (bad) throw new Error(bad);
+    return parameters;
+  }
+
+  function setStatus(text, isError) {
+    const el = $("status");
+    el.textContent = text;
+    el.classList.toggle("error", !!isError);
+  }
+
+  async function api(path, options) {
+    const response = await fetch(path, options);
+    if (!response.ok) {
+      let detail = response.statusText;
+      try { detail = (await response.json()).detail || detail; } catch (e) {}
+      throw new Error(detail);
+    }
+    return response.json();
+  }
+
+  async function runModel() {
+    let body;
+    try { body = { parameters: readParameters(), layers: readLayers() }; }
+    catch (e) { setStatus(e.message, true); return; }
+    $("run").disabled = true;
+    setStatus("Running...");
+    const t0 = performance.now();
+    try {
+      const summary = await api("/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      setStatus("Done in " + ((performance.now() - t0) / 1000).toFixed(1) + " s.");
+      showRun(summary);
+      history.replaceState(null, "", "?run=" + summary.id);
+      refreshRuns();
+    } catch (e) {
+      setStatus(e.message, true);
+    } finally {
+      $("run").disabled = false;
+    }
+  }
+
+  function showRun(summary) {
+    current = summary;
+    stopPlaying();
+    $("empty").classList.add("hidden");
+    $("results").classList.remove("hidden");
+    $("title").textContent = "Run " + summary.id;
+    const cells = summary.grid + " x " + summary.grid + " @ " + fmt(summary.resolution) + " m";
+    const items = [
+      [summary.total_craters === null ? "?" : summary.total_craters.toLocaleString(), "craters formed"],
+      [summary.visible_craters.toLocaleString(), "visible at the end"],
+      [fmt(summary.parameters.endTime) + " Ma", summary.steps.length + " output steps"],
+      [cells, "output grid"],
+      [fmt(summary.elevation_min) + " to " + fmt(summary.elevation_max) + " m", "elevation range"],
+      [summary.duration_s + " s", "run time"],
+    ];
+    $("summary").innerHTML = items.map(([v, l]) => "<div><b>" + v + "</b><span>" + l + "</span></div>").join("");
+    const kind = $("kind");
+    if (!kind.options.length) {
+      for (const [value, text] of Object.entries(meta.map_kinds)) {
+        const opt = document.createElement("option"); opt.value = value; opt.textContent = text; kind.appendChild(opt);
+      }
+    }
+    const step = $("step");
+    step.max = summary.steps.length - 1;
+    step.value = summary.steps.length - 1;
+    $("histograms").src = "/api/runs/" + summary.id + "/histograms.png";
+    $("links").innerHTML =
+      '<a href="/api/runs/' + summary.id + '/download.zip">Download all output (zip)</a>' +
+      '<a href="/api/runs/' + summary.id + '/craters.csv">Visible craters (csv)</a>' +
+      '<a id="gif" href="#">Animation (gif)</a>' +
+      '<a href="/api/runs/' + summary.id + '/log" target="_blank">Log</a>';
+    $("gif").onclick = (e) => { e.preventDefault(); window.open("/api/runs/" + summary.id + "/animation/" + $("kind").value + ".gif"); };
+    updateFigures();
+    preload();
+  }
+
+  function updateFigures() {
+    if (!current) return;
+    const step = parseInt($("step").value, 10);
+    $("map").src = "/api/runs/" + current.id + "/map/" + $("kind").value + "/" + step + ".png";
+    $("profile").src = "/api/runs/" + current.id + "/profile/" + step + ".png";
+    $("time").textContent = "t = " + fmt(current.times[step]) + " Ma";
+  }
+
+  function preload() {
+    if (!current) return;
+    const kind = $("kind").value;
+    current.steps.forEach((s, k) => { const img = new Image(); img.src = "/api/runs/" + current.id + "/map/" + kind + "/" + k + ".png"; });
+  }
+
+  function stopPlaying() {
+    if (playing) { clearInterval(playing); playing = null; $("play").textContent = "Play"; }
+  }
+
+  function togglePlay() {
+    if (playing) { stopPlaying(); return; }
+    $("play").textContent = "Pause";
+    playing = setInterval(() => {
+      const step = $("step");
+      step.value = (parseInt(step.value, 10) + 1) % (parseInt(step.max, 10) + 1);
+      updateFigures();
+    }, 700);
+  }
+
+  async function refreshRuns() {
+    let runs = [];
+    try { runs = await api("/api/runs"); } catch (e) { return; }
+    const list = $("runs");
+    list.innerHTML = "";
+    if (!runs.length) { list.innerHTML = "<li style='color:var(--muted)'>none yet</li>"; return; }
+    runs.slice(0, 30).forEach(r => {
+      const li = document.createElement("li");
+      const p = r.parameters || {};
+      li.innerHTML = '<a href="?run=' + r.id + '">' + r.id + '</a> &middot; ' + fmt(p.regionWidth) + ' m @ ' + fmt(p.resolution) +
+        ' m, ' + fmt(p.endTime) + ' Ma, ' + (r.visible_craters === null ? '?' : r.visible_craters) + ' craters ' +
+        '<button type="button" title="delete run" style="padding:0 5px; margin-left:4px">x</button>';
+      li.querySelector("a").onclick = (e) => { e.preventDefault(); loadRun(r.id); };
+      li.querySelector("button").onclick = async () => {
+        if (!confirm("Delete run " + r.id + "?")) return;
+        try { await api("/api/runs/" + r.id + "/delete", { method: "POST" }); } catch (e) { setStatus(e.message, true); }
+        if (current && current.id === r.id) { $("results").classList.add("hidden"); $("empty").classList.remove("hidden"); current = null; history.replaceState(null, "", location.pathname); }
+        refreshRuns();
+      };
+      list.appendChild(li);
+    });
+  }
+
+  async function loadRun(runId) {
+    try {
+      const summary = await api("/api/runs/" + encodeURIComponent(runId));
+      meta.parameters.forEach(p => { if (summary.parameters[p.name] !== null && summary.parameters[p.name] !== undefined) $("p_" + p.name).value = fmt(summary.parameters[p.name]); });
+      setLayers(summary.layers);
+      showRun(summary);
+      history.replaceState(null, "", "?run=" + summary.id);
+      setStatus("");
+    } catch (e) {
+      setStatus("Run " + runId + " is no longer available.", true);
+    }
+  }
+
+  async function init() {
+    try {
+      meta = await api("/api/meta");
+    } catch (e) {
+      setStatus("Cannot reach the server: " + e.message, true);
+      return;
+    }
+    buildForm();
+    $("run").onclick = runModel;
+    $("reset").onclick = () => { setDefaults(); setStatus(""); };
+    $("addLayer").onclick = () => $("layers").appendChild(layerRow([0, 1, 1, 0, 0]));
+    $("kind").onchange = () => { updateFigures(); preload(); };
+    $("step").oninput = updateFigures;
+    $("play").onclick = togglePlay;
+    refreshRuns();
+    const runId = new URLSearchParams(location.search).get("run");
+    if (runId) {
+      await loadRun(runId);
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

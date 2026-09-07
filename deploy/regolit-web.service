@@ -1,0 +1,23 @@
+# systemd unit for the REGOLIT web UI. Installed by deploy/setup_droplet.sh, which substitutes
+# the paths and the service user. Configuration lives in /etc/regolit-web.env.
+[Unit]
+Description=REGOLIT web UI (uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+WorkingDirectory=__APP_DIR__
+EnvironmentFile=-/etc/regolit-web.env
+ExecStart=__APP_DIR__/venv/bin/uvicorn web.server:app --host 127.0.0.1 --port __PORT__ --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=3
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=__APP_DIR__/runs
+
+[Install]
+WantedBy=multi-user.target

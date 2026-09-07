@@ -1,3 +1,5 @@
+#pragma once
+
 // Class for impactor objects
 class Impactor {
 public:

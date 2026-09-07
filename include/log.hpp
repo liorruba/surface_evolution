@@ -1,7 +1,9 @@
-// Creates and maintains a log file.
+#pragma once
+#include <string>
 
-// Log file:
+// Creates and maintains a log file.
 void createLogFile(const char *path);
 
-// Add a new log entry
-void addLogEntry(const char *str, bool dispOnScreen);
+// Add a new log entry, optionally echoed to the screen.
+void addLogEntry(const char *str, bool dispOnScreen = false);
+void addLogEntry(const std::string &str, bool dispOnScreen = false);

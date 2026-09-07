@@ -1,4 +1,7 @@
-#include <complex>
+#pragma once
+#include <vector>
+#include "layer.hpp"
+#include "impactor.hpp"
 
 // Class for crater object
 class Crater {
@@ -8,25 +11,26 @@ double yLocation;
 double transientRadius;
 double transientRadiusGravity;
 double finalRadius;
-double finalDepth;   // final depth, as opposed to transient depth
-double finalDepth_init;   // initial final depth
+double finalDepth;        // rim-to-floor depth, as opposed to transient depth
+double finalDepth_init;   // depth at formation
 double rimHeight;
-double floorElevation;
+double floorElevation;    // surface elevation at the crater center after formation
 int numberOfSecondaries;
-Layer ejectedMass;
-std::vector<double> ejectaDistance;
-std::vector<double> ejectaThickness;
+Layer ejectedMass;                    // composition of the excavated material (thickness = summed excavated thickness)
+std::vector<double> ejectaDistance;   // distances from the crater center, ascending, m
+std::vector<double> ejectaThickness;  // ejecta blanket thickness at those distances, m
 
-Crater(Impactor impactor);
-Crater(Impactor impactor, double xLocation, double yLocation);
-Crater(Impactor impactor, double xLocation, double yLocation, Layer ejectedMass);
-Crater(double finalRadius, double xLocation, double yLocation);
+Crater(Impactor impactor);                                                         // random location
+Crater(Impactor impactor, double xLocation, double yLocation);                     // given location
+Crater(Impactor impactor, double xLocation, double yLocation, Layer ejectedMass);  // ghost crater: inherits the ejecta composition
+Crater(double xLocation, double yLocation, double finalRadius);                    // given radius, no ejecta (secondaries)
 
 private:
-double calcTransientVolume(Impactor impactor);
-double calcTransientVolumeGravity(Impactor impactor);
-double calcTransientCraterRadius(Impactor impactor);
-double calcTransientCraterRadiusGravity(Impactor impactor);
-double calcFinalCraterRadius();
-void calcEjectaThickness(Impactor impactor);
+void initializeFromImpactor(const Impactor &impactor);
+double calcTransientVolume(const Impactor &impactor) const;
+double calcTransientVolumeGravity(const Impactor &impactor) const;
+double calcTransientCraterRadius(const Impactor &impactor) const;
+double calcTransientCraterRadiusGravity(const Impactor &impactor) const;
+double calcFinalCraterRadius() const;
+void calcEjectaThickness(const Impactor &impactor);
 };

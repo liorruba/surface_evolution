@@ -1,0 +1,8 @@
+build/obj/
+build/apps/
+output/
+log/
+.DS_Store
+runs/
+__pycache__/
+*.egg-info/

@@ -1,0 +1,14 @@
+[project]
+name = "regolit"
+version = "0.1.0"
+description = "Readers, run driver and quick-look plots for the REGOLIT surface evolution model"
+requires-python = ">=3.8"
+dependencies = ["numpy", "matplotlib"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["regolit*"]

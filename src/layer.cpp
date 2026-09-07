@@ -4,10 +4,8 @@
 #include <cmath>
 #include <vector>
 #include "../include/regolit_main.hpp"
-#include "../include/impactor.hpp"
 #include "../include/utility.hpp"
 #include "../include/layer.hpp"
-#include "../include/crater.hpp"
 #include "../include/log.hpp"
 
 Layer::Layer(double _thickness, double _regolithFraction, double _iceFraction, double _sootFraction){
@@ -40,7 +38,7 @@ void Layer::normalizeComposition() {
 }
 
 // Compare the composition of two layers:
-bool Layer::compareComposition(Layer layer) {
+bool Layer::compareComposition(const Layer &layer) const {
         double eps = 1e-2;
 
         if (
@@ -62,7 +60,7 @@ void Layer::changeComposition(double _regolithFraction, double _iceFraction, dou
         normalizeComposition();
 }
 
-// Consolidate two layers:
+// Consolidate two layers (thickness-weighted mixing):
 void Layer::consolidate(Layer otherLayer) {
         regolithFraction = (thickness * regolithFraction + otherLayer.thickness * otherLayer.regolithFraction);
         iceFraction = (thickness * iceFraction + otherLayer.thickness * otherLayer.iceFraction);
@@ -73,7 +71,7 @@ void Layer::consolidate(Layer otherLayer) {
 }
 
 // Check if layer is empty
-bool Layer::isEmpty() {
+bool Layer::isEmpty() const {
         if (regolithFraction == 0 && iceFraction == 0 && sootFraction == 0) {
                 return true;
         }
