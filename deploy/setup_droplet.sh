@@ -17,6 +17,9 @@
 #   CERTBOT_EMAIL if set, obtains a Let's Encrypt certificate non-interactively
 #   SKIP_GIT=1    do not clone or pull: deploy the code already present in APP_DIR (e.g. after rsync)
 #   AUTO_UPDATE   1 (default) installs a systemd timer that redeploys when the GitHub branch moves; 0 disables it
+#   MODE=proxy    mediator mode: the model runs elsewhere and reaches this droplet through a reverse SSH tunnel
+#                 on 127.0.0.1:PORT; only the nginx site (and certbot) is installed, and any droplet-side
+#                 regolit-web service and update timer are disabled. See deploy/mediator/.
 set -euo pipefail
 
 DOMAIN="${DOMAIN:-regolit.liorruba.com}"
@@ -30,8 +33,26 @@ WEB_PASSWORD="${WEB_PASSWORD:-}"
 CERTBOT_EMAIL="${CERTBOT_EMAIL:-}"
 SKIP_GIT="${SKIP_GIT:-}"
 AUTO_UPDATE="${AUTO_UPDATE:-1}"
+MODE="${MODE:-full}"
 
 if [[ $EUID -ne 0 ]]; then echo "run as root (sudo)"; exit 1; fi
+
+if [[ "$MODE" == "proxy" ]]; then
+  echo "==> mediator mode: nginx only, proxying $DOMAIN to the tunnel on 127.0.0.1:$PORT"
+  apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nginx >/dev/null
+  if [[ -n "$CERTBOT_EMAIL" ]]; then DEBIAN_FRONTEND=noninteractive apt-get install -y -qq certbot python3-certbot-nginx >/dev/null; fi
+  systemctl disable --now regolit-web.service regolit-update.timer 2>/dev/null || true
+  SITE_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/nginx-regolit.conf"
+  sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__PORT__|$PORT|g" "$SITE_SRC" > /etc/nginx/sites-available/regolit
+  ln -sf /etc/nginx/sites-available/regolit /etc/nginx/sites-enabled/regolit
+  nginx -t && systemctl reload nginx
+  if [[ -n "$CERTBOT_EMAIL" ]]; then
+    certbot --nginx --non-interactive --agree-tos --redirect -m "$CERTBOT_EMAIL" -d "$DOMAIN" || echo "certbot failed; run it manually once DNS for $DOMAIN points here"
+  fi
+  echo "Done. The tunnel from the compute machine must bind 127.0.0.1:$PORT here (see deploy/mediator/setup_mediator.sh)."
+  exit 0
+fi
 
 echo "==> packages"
 apt-get update -qq

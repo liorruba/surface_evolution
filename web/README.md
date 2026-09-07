@@ -14,7 +14,32 @@ venv/bin/uvicorn web.server:app --reload --port 8010
 # open http://127.0.0.1:8010
 ```
 
-## Deploy on the droplet
+## Mediator mode (recommended, as for moon.liorruba.com)
+
+The model and the web server run on the compute machine straight from the working copy, and the
+droplet only forwards: a reverse SSH tunnel from the compute machine publishes the server on the
+droplet's `127.0.0.1:8030`, where nginx proxies `regolit.liorruba.com` to it. Python changes are
+live immediately (uvicorn `--reload`); after a C++ change run `systemctl --user restart regolit-web`,
+which rebuilds the binary. Nothing is pulled from GitHub.
+
+On the compute machine, as your user (the machine's SSH key must be authorized on the droplet):
+
+```bash
+WEB_USER=regolit WEB_PASSWORD='...' PORT=8030 DROPLET=root@192.241.128.158 bash deploy/mediator/setup_mediator.sh
+```
+
+This installs two systemd user units, `regolit-web` and `regolit-tunnel`, enables them at boot
+(`loginctl enable-linger` keeps them running without a login session) and stores the credentials in
+`~/.config/regolit/web.env`. On the droplet, as root, install only the nginx site:
+
+```bash
+MODE=proxy DOMAIN=regolit.liorruba.com PORT=8030 CERTBOT_EMAIL=you@example.com bash /opt/regolit/deploy/setup_droplet.sh
+```
+
+Logs: `journalctl --user -u regolit-web -f` and `journalctl --user -u regolit-tunnel -f` on the
+compute machine.
+
+## Deploy on the droplet itself (alternative)
 
 The layout is the one used for moon.liorruba.com: uvicorn bound to localhost as a systemd service,
 nginx in front, TLS from Let's Encrypt, HTTP basic authentication inside the app.

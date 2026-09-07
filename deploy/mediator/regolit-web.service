@@ -1,0 +1,18 @@
+# systemd *user* unit: REGOLIT web UI running on the compute machine straight from the working copy.
+# Python changes are picked up live (--reload); C++ changes take effect after
+# `systemctl --user restart regolit-web` (ExecStartPre rebuilds the binary).
+# Installed by deploy/mediator/setup_mediator.sh with the placeholders substituted.
+[Unit]
+Description=REGOLIT web UI (served to the public through the droplet tunnel)
+After=network.target
+
+[Service]
+WorkingDirectory=__APP_DIR__
+EnvironmentFile=%h/.config/regolit/web.env
+ExecStartPre=/usr/bin/make -s -C __APP_DIR__
+ExecStart=__APP_DIR__/venv/bin/uvicorn web.server:app --host 127.0.0.1 --port __PORT__ --reload --reload-dir web --reload-dir python --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
