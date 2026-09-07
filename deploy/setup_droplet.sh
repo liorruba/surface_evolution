@@ -16,6 +16,7 @@
 #   WEB_USER / WEB_PASSWORD  HTTP basic-auth credentials; leave empty for an open site
 #   CERTBOT_EMAIL if set, obtains a Let's Encrypt certificate non-interactively
 #   SKIP_GIT=1    do not clone or pull: deploy the code already present in APP_DIR (e.g. after rsync)
+#   AUTO_UPDATE   1 (default) installs a systemd timer that redeploys when the GitHub branch moves; 0 disables it
 set -euo pipefail
 
 DOMAIN="${DOMAIN:-regolit.liorruba.com}"
@@ -28,6 +29,7 @@ WEB_USER="${WEB_USER:-}"
 WEB_PASSWORD="${WEB_PASSWORD:-}"
 CERTBOT_EMAIL="${CERTBOT_EMAIL:-}"
 SKIP_GIT="${SKIP_GIT:-}"
+AUTO_UPDATE="${AUTO_UPDATE:-1}"
 
 if [[ $EUID -ne 0 ]]; then echo "run as root (sudo)"; exit 1; fi
 
@@ -84,6 +86,18 @@ systemctl enable --quiet regolit-web
 systemctl restart regolit-web
 sleep 2
 systemctl --no-pager --lines=5 status regolit-web || true
+
+echo "==> auto-update timer"
+if [[ "$AUTO_UPDATE" == "1" && -z "$SKIP_GIT" ]]; then
+  sed -e "s|__USER__|$SERVICE_USER|g" -e "s|__APP_DIR__|$APP_DIR|g" -e "s|__BRANCH__|$BRANCH|g" \
+    "$APP_DIR/deploy/regolit-update.service" > /etc/systemd/system/regolit-update.service
+  cp "$APP_DIR/deploy/regolit-update.timer" /etc/systemd/system/regolit-update.timer
+  systemctl daemon-reload
+  systemctl enable --quiet --now regolit-update.timer
+  echo "pushes to $BRANCH are deployed within about two minutes (journalctl -u regolit-update)"
+else
+  systemctl disable --quiet --now regolit-update.timer 2>/dev/null || true
+fi
 
 echo "==> nginx site"
 sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__PORT__|$PORT|g" "$APP_DIR/deploy/nginx-regolit.conf" > /etc/nginx/sites-available/regolit

@@ -35,8 +35,13 @@ nginx in front, TLS from Let's Encrypt, HTTP basic authentication inside the app
    certificate. Pick another `PORT` if 8010 is taken by the moon service (`ss -ltnp | grep 8010`).
    The firewall must allow 80 and 443 (`ufw allow 'Nginx Full'`), which is already the case if
    nginx serves the moon site.
-3. Updating later: re-run the same command (it pulls, rebuilds and restarts), or
-   `git -C /opt/regolit pull && make -C /opt/regolit && systemctl restart regolit-web`.
+3. Updating: the installer enables a systemd timer (`regolit-update.timer`) that checks GitHub
+   every two minutes and, when `master` has new commits, pulls, rebuilds, reinstalls the Python
+   requirements and restarts the service. A push therefore goes live within a few minutes; watch it
+   with `journalctl -u regolit-update -f`. To update immediately run
+   `bash /opt/regolit/deploy/update_droplet.sh`; to disable automatic updates run
+   `systemctl disable --now regolit-update.timer` (or install with `AUTO_UPDATE=0`). Because the
+   updater resets the checkout to `origin/master`, do not edit files in `/opt/regolit` on the droplet.
 
 Logs: `journalctl -u regolit-web -f`. Health check: `curl http://127.0.0.1:8010/health`.
 

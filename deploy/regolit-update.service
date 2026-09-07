@@ -1,0 +1,12 @@
+# Oneshot service run by regolit-update.timer: pulls and redeploys when GitHub has new commits.
+[Unit]
+Description=REGOLIT auto-update from GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=APP_DIR=__APP_DIR__
+Environment=BRANCH=__BRANCH__
+Environment=SERVICE_USER=__USER__
+ExecStart=/usr/bin/bash __APP_DIR__/deploy/update_droplet.sh
