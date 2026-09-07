@@ -80,12 +80,13 @@ THEME = {"figure": "#141a21", "axes": "#0d1116", "ink": "#e4e8ee", "muted": "#8d
 # Composition colors of the layered cross-section: regolith, ice, soot.
 COMPOSITION_COLORS = np.array([[0.62, 0.56, 0.48], [0.60, 0.84, 1.00], [0.10, 0.10, 0.12]])
 
-# Map figure geometry, fixed so the page can overlay the cross-section line on the image.
-MAP_FIG_SIZE = (6.6, 5.6)      # inches
+# Map figure geometry, fixed so the page can overlay the cross-section line on the image. The map
+# axes are exactly square in pixels (the domain is square), so the image fills them.
 MAP_DPI = 110
-MAP_AXES_RECT = (0.11, 0.10, 0.70, 0.82)        # left, bottom, width, height (figure fractions), with a colorbar
-MAP_CBAR_RECT = (0.84, 0.10, 0.03, 0.82)
-MAP_AXES_RECT_WIDE = (0.11, 0.10, 0.86, 0.82)   # kinds without a colorbar (shaded relief)
+MAP_LAYOUTS = {
+    "with_colorbar": {"size": (6.6, 5.6), "axes": (0.11, 0.10, 0.82 * 5.6 / 6.6, 0.82), "cbar": (0.84, 0.10, 0.03, 0.82)},
+    "without_colorbar": {"size": (5.6, 5.6), "axes": (0.13, 0.10, 0.82, 0.82), "cbar": None},
+}
 
 # Parameters the UI exposes: name, label, unit, min, max, kind, description. Values not listed
 # here stay at the repository defaults (config/config.cfg).
@@ -372,7 +373,7 @@ def step_index(summary: Dict, step: int) -> int:
 # ----------------------------------------------------------------------------------------------
 # Helpers: figures
 # ----------------------------------------------------------------------------------------------
-def themed_figure(size: Tuple[float, float], dpi: int = MAP_DPI):
+def themed_figure(size: Tuple[float, float], dpi: int = MAP_DPI):  # noqa: D103
     fig = plt.figure(figsize=size, dpi=dpi, facecolor=THEME["figure"])
     return fig
 
@@ -389,10 +390,11 @@ def style_axes(ax) -> None:
 
 def map_geometry() -> Dict:
     """Pixel position of the map axes inside the PNG (origin top-left) for both layouts, for the page overlay."""
-    width_px = MAP_FIG_SIZE[0] * MAP_DPI
-    height_px = MAP_FIG_SIZE[1] * MAP_DPI
     geometry = {}
-    for name, (left, bottom, width, height) in (("with_colorbar", MAP_AXES_RECT), ("without_colorbar", MAP_AXES_RECT_WIDE)):
+    for name, layout in MAP_LAYOUTS.items():
+        width_px = layout["size"][0] * MAP_DPI
+        height_px = layout["size"][1] * MAP_DPI
+        left, bottom, width, height = layout["axes"]
         geometry[name] = {
             "width": width_px, "height": height_px,
             "x0": left * width_px, "x1": (left + width) * width_px,
@@ -454,16 +456,17 @@ def render_map(run_id: str, kind: str, step: int, azimuth: float = 315.0, altitu
         vmin, vmax = 0.0, 1.0
         if where == "integrated":
             label = "{} (top {:g} m)".format(label, summary["parameters"].get("depthToIntegrate", float("nan")))
+    layout = MAP_LAYOUTS["with_colorbar" if show_colorbar else "without_colorbar"]
     with PLOT_LOCK:
-        fig = themed_figure(MAP_FIG_SIZE)
-        ax = fig.add_axes(MAP_AXES_RECT if show_colorbar else MAP_AXES_RECT_WIDE)
+        fig = themed_figure(layout["size"])
+        ax = fig.add_axes(layout["axes"])
         style_axes(ax)
         image = ax.imshow(data, origin="lower", extent=summary["extent"], cmap=cmap, vmin=vmin, vmax=vmax, interpolation="nearest")
         ax.set_xlabel("x [m]")
         ax.set_ylabel("y [m]")
         ax.set_title("{}, t = {:g} Ma".format(label, summary["times"][step]), fontsize=10)
         if show_colorbar:
-            cax = fig.add_axes(MAP_CBAR_RECT)
+            cax = fig.add_axes(layout["cbar"])
             colorbar = fig.colorbar(image, cax=cax)
             colorbar.set_label(unit, color=THEME["ink"])
             colorbar.ax.tick_params(colors=THEME["muted"], labelsize=8.5)
