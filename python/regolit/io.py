@@ -80,7 +80,7 @@ def write_config(path: PathLike, params: Dict[str, object], template: Optional[P
                 key = stripped.split()[0]
                 if key in params:
                     indent = raw[: len(raw) - len(raw.lstrip())]
-                    lines.append("{}{:<24s}{}".format(indent, key, _format_value(params.pop(key))))
+                    lines.append("{}{:<24s} {}".format(indent, key, _format_value(params.pop(key))))
                     continue
             lines.append(raw)
         if params and not allow_new_keys:
@@ -89,7 +89,7 @@ def write_config(path: PathLike, params: Dict[str, object], template: Optional[P
             lines.append("")
             lines.append("// Added by regolit.driver:")
     for key, value in params.items():
-        lines.append("{:<24s}{}".format(key, _format_value(value)))
+        lines.append("{:<24s} {}".format(key, _format_value(value)))
     Path(path).write_text("\n".join(lines) + "\n")
 
 
