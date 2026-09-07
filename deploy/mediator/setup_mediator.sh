@@ -3,7 +3,7 @@
 # the web UI runs here from this working copy and a reverse SSH tunnel publishes it on the droplet,
 # whose nginx forwards the public host name to the tunnel. Run as your normal user, from anywhere:
 #
-#   WEB_USER=regolit WEB_PASSWORD='...' PORT=8030 DROPLET=root@192.241.128.158 bash deploy/mediator/setup_mediator.sh
+#   WEB_USER=regolith WEB_PASSWORD='moon' PORT=8030 DROPLET=root@192.241.128.158 bash deploy/mediator/setup_mediator.sh
 #
 # Re-running updates the units and the environment (credentials are kept if not given).
 # Requirements: python3-venv, make, g++, an SSH key on this machine authorized on the droplet.

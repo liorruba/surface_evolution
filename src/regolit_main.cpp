@@ -37,7 +37,7 @@ bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive.
 bool isEmplaceSecondaries; // Should emplace secondaries? Computationally extensive.
 bool runTests; // Should run tests? 
 int randomSeed; // Random number generator seed
-bool isPrintSubsurface; // Print the full subsurface?
+int isPrintSubsurface; // Print the layer stacks: 0 never, 1 every print step, 2 final step only
 double depthToIntegrate; // Depth to integrate when printing integrated subsurface
 double downsamplingResolution; // Downsample the results to produce smaller files
 
@@ -144,7 +144,7 @@ int main() {
         runTests = setVariable(varList, "runTests");
         randomSeed = (int) setVariable(varList, "randomSeed");
         downsamplingResolution = (double) setVariable(varList, "downsamplingResolution");
-        isPrintSubsurface = (bool) setVariable(varList, "isPrintSubsurface");
+        isPrintSubsurface = (int) setVariable(varList, "isPrintSubsurface");
         depthToIntegrate = (double) setVariable(varList, "depthToIntegrate");
 
         // Crater formation variables:
@@ -192,6 +192,10 @@ int main() {
         // Sanity checks on the parameters that would otherwise fail silently:
         if (craterProfileType != 1 && craterProfileType != 2) {
                 addLogEntry("ERROR: craterProfileType must be 1 (parabolic) or 2 (bowl-shaped).", true);
+                return EXIT_FAILURE;
+        }
+        if (isPrintSubsurface < 0 || isPrintSubsurface > 2) {
+                addLogEntry("ERROR: isPrintSubsurface must be 0 (never), 1 (every print step) or 2 (final step only).", true);
                 return EXIT_FAILURE;
         }
         if (endTime <= 0 || printTimeStep <= 0 || regionWidth <= 0 || resolution <= 0) {
@@ -320,7 +324,7 @@ int main() {
                         grid.printSurface(printIndex, false);
                         grid.printIntegratedSubsurface(depthToIntegrate, printIndex);
 
-                        if (isPrintSubsurface) {
+                        if (isPrintSubsurface == 1) {
                                 grid.printSubsurface(printIndex);
                         }
 
@@ -340,7 +344,7 @@ int main() {
         grid.printSurface(printIndex, true);
         grid.printIntegratedSubsurface(depthToIntegrate, printIndex);
         
-        if (isPrintSubsurface) {
+        if (isPrintSubsurface >= 1) {
                 grid.printSubsurface(printIndex);
         }
 

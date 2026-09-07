@@ -5,384 +5,544 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>REGOLIT</title>
 <style>
-  :root { --bg: #f5f4f0; --panel: #ffffff; --ink: #1f2328; --muted: #6a737d; --line: #d9d6cf; --accent: #2f5d8a; --accent-ink: #ffffff; --warn: #b3261e; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
-  header { background: #1c2733; color: #f2f4f7; padding: 16px 24px; }
-  header h1 { margin: 0; font-size: 20px; letter-spacing: 0.02em; }
-  header p { margin: 4px 0 0; color: #b7c2cf; font-size: 13px; }
-  main { display: grid; grid-template-columns: 380px 1fr; gap: 20px; padding: 20px 24px; max-width: 1500px; margin: 0 auto; }
-  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
-  details { border-top: 1px solid var(--line); padding: 6px 0; }
-  details:first-of-type { border-top: none; }
-  summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
-  .row { display: grid; grid-template-columns: 1fr 120px; gap: 8px; align-items: center; padding: 3px 0; }
-  .row label { color: var(--ink); }
-  .row small { display: block; color: var(--muted); font-size: 11.5px; }
-  input[type=number], select { width: 100%; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; font: inherit; background: #fff; }
-  input.invalid { border-color: var(--warn); }
-  table.layers { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 12.5px; }
-  table.layers th, table.layers td { padding: 2px 3px; text-align: center; }
-  table.layers input { width: 100%; padding: 3px 4px; border: 1px solid var(--line); border-radius: 3px; font: inherit; }
-  table.layers button { padding: 0 6px; }
-  .actions { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
-  button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
-  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
-  button:disabled { opacity: 0.55; cursor: default; }
-  #status { color: var(--muted); }
-  #status.error { color: var(--warn); }
-  .results h2 { margin: 0 0 8px; font-size: 16px; }
-  .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
-  .controls input[type=range] { width: 260px; }
-  .figures { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  @media (max-width: 1250px) { .figures { grid-template-columns: 1fr; } }
-  .figures img { width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
-  .wide { grid-column: 1 / -1; }
-  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
-  .summary div { background: #f7f8fa; border-radius: 6px; padding: 6px 10px; }
-  .summary b { display: block; font-size: 16px; }
-  .summary span { color: var(--muted); font-size: 12px; }
-  .links a { margin-right: 14px; }
-  a { color: var(--accent); }
-  .hidden { display: none; }
-  footer { color: var(--muted); font-size: 12px; padding: 12px 24px 24px; max-width: 1500px; margin: 0 auto; }
+  :root{
+    --shell:#0f1419; --shell2:#151c23; --raise:#1b242d; --raise2:#212c37; --edge:#27323d; --edge-soft:#1e272f;
+    --ink:#e8ecf1; --dim:#94a0ad; --faint:#66717f;
+    --accent:#e5a15e; --accent-deep:#b7712f; --accent-wash:#2b2216; --cool:#7fd3c8; --alert:#ff6b7a; --ok:#5fe0a0;
+    --bar-h:54px; --rail-w:324px;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","IBM Plex Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--shell);color:var(--ink);font:14px/1.45 var(--sans)}
+  a{color:var(--accent)}
+  button,input,select{font:inherit;color:inherit}
+  .mono{font-family:var(--mono)}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+  .hide{display:none !important}
+
+  /* top bar */
+  .bar{height:var(--bar-h);display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--edge-soft);background:var(--shell2);position:sticky;top:0;z-index:5}
+  .logo{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#f3d9b8 0,#b89a7a 35%,#5a4a3b 75%,#2a231c 100%);box-shadow:0 0 0 1px var(--edge)}
+  .brand{font-family:var(--mono);font-weight:700;letter-spacing:.22em;text-transform:uppercase;font-size:14px}
+  .brand-sub{color:var(--dim);font-size:12px}
+  .bar .spacer{flex:1}
+  .bar-status{font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .bar-status b{color:var(--ink);font-weight:600}
+
+  /* layout */
+  .shell{display:flex;min-height:calc(100% - var(--bar-h) - 34px)}
+  .rail{width:var(--rail-w);flex:none;border-right:1px solid var(--edge-soft);padding:14px;display:flex;flex-direction:column;gap:12px;background:var(--shell)}
+  .stage{flex:1;min-width:0;padding:22px 28px 30px}
+  footer{height:34px;display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:0 18px;font-family:var(--mono);font-size:11px;color:var(--faint);border-top:1px solid var(--edge-soft)}
+
+  /* buttons */
+  .btn{border:1px solid var(--edge);background:var(--raise);border-radius:9px;padding:8px 14px;cursor:pointer;font-weight:600;font-size:13px}
+  .btn:hover{background:var(--raise2)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#1a1208}
+  .btn.primary:hover{background:#f0b473}
+  .btn.danger{color:var(--alert)}
+  .btn.big{width:100%;padding:12px 14px;font-size:15px;border-radius:12px}
+  .btn:disabled{opacity:.5;cursor:default}
+  .ghost{border:1px solid var(--edge);background:transparent;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;color:var(--dim)}
+  .ghost.on{background:var(--raise2);color:var(--ink);border-color:var(--edge)}
+  .seg{display:inline-flex;border:1px solid var(--edge);border-radius:9px;overflow:hidden}
+  .seg button{border:0;background:transparent;padding:6px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  .seg button.on{background:var(--raise2);color:var(--ink)}
+
+  /* rail list */
+  .rail-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .rail-head input{flex:1;background:var(--shell2);border:1px solid var(--edge);border-radius:8px;padding:5px 8px;font-size:12px}
+  .list{overflow:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px}
+  .card{border-radius:10px;padding:10px 12px;cursor:pointer;border:1px solid transparent;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .card:hover{background:var(--shell2)}
+  .card.on{background:var(--raise);border-color:var(--edge)}
+  .card b{display:block;font-size:13.5px}
+  .card small{display:block;font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card .title{min-width:0}
+  .pill{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--raise);border:1px solid var(--edge);white-space:nowrap}
+  .pill.ok{color:var(--ok)}
+
+  /* stage: empty + run header */
+  .empty{text-align:center;padding-top:70px;color:var(--dim)}
+  .empty h2{color:var(--ink);font-size:22px;margin:0 0 6px}
+  .run-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+  .run-head h1{margin:0;font-size:24px;letter-spacing:-.01em}
+  .run-head .id{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:3px}
+  .actions{display:flex;gap:8px;flex:none}
+  .statusline{display:flex;gap:12px;align-items:center;margin:14px 0 10px;font-family:var(--mono);font-size:12.5px;color:var(--dim)}
+  .tabs{display:flex;gap:22px;border-bottom:1px solid var(--edge-soft);margin-bottom:18px}
+  .tabs button{border:0;background:transparent;padding:10px 0;cursor:pointer;font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+
+  /* maps tab */
+  .chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .chip{border:1px solid var(--edge);background:var(--raise);border-radius:9px;padding:7px 12px;cursor:pointer;font-size:13px}
+  .chip.on{border-color:var(--accent);background:var(--accent-wash);color:var(--ink)}
+  .duo{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;align-items:start}
+  @media (max-width:1250px){.duo{grid-template-columns:1fr}}
+  .mapwrap{position:relative;border-radius:12px;overflow:hidden;background:#141a21;border:1px solid var(--edge-soft)}
+  .mapwrap img{display:block;width:100%;height:auto;cursor:crosshair}
+  .mapwrap svg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+  .controls{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--dim)}
+  .controls input[type=range]{width:220px;accent-color:var(--accent)}
+  .controls select,.controls input[type=number]{background:var(--shell2);border:1px solid var(--edge);border-radius:7px;padding:4px 6px;font-size:12px}
+  .caption{color:var(--dim);font-size:12.5px;margin-top:8px;line-height:1.5}
+  .tiles{display:flex;flex-direction:column;gap:12px}
+  .tile{background:var(--raise);border:1px solid var(--edge-soft);border-radius:12px;padding:14px 16px}
+  .tile .num{font-family:var(--mono);font-size:30px;line-height:1.05;letter-spacing:-.02em}
+  .tile .num small{font-size:14px;color:var(--dim);margin-left:4px}
+  .tile .eyebrow{margin-top:6px}
+  .tile p{margin:4px 0 0;color:var(--dim);font-size:12px}
+  .panel{background:var(--shell2);border:1px solid var(--edge-soft);border-radius:12px;padding:14px 16px;margin-top:18px}
+  .section-head{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px;color:var(--dim)}
+  .section-head input[type=range]{width:240px;accent-color:var(--accent)}
+  .section-head input[type=number]{width:70px;background:var(--shell);border:1px solid var(--edge);border-radius:7px;padding:4px 6px}
+  .panel img{display:block;width:100%;height:auto;border-radius:8px}
+
+  /* composer */
+  .composer h1{margin:0 0 4px;font-size:24px}
+  .composer .lead{color:var(--dim);margin:0 0 18px}
+  .groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
+  .group{background:var(--shell2);border:1px solid var(--edge-soft);border-radius:12px;padding:12px 14px}
+  .group .eyebrow{margin-bottom:8px;display:block}
+  .row{display:grid;grid-template-columns:1fr 130px;gap:10px;align-items:center;padding:5px 0;border-top:1px solid var(--edge-soft)}
+  .row:first-of-type{border-top:0}
+  .row label{font-size:13px}
+  .row .help{display:block;color:var(--faint);font-size:11.5px;margin-top:1px}
+  .row input,.row select{width:100%;background:var(--shell);border:1px solid var(--edge);border-radius:7px;padding:5px 7px;font-family:var(--mono);font-size:12.5px}
+  .row input.invalid{border-color:var(--alert)}
+  .row .unit{color:var(--faint);font-size:11.5px;margin-left:4px}
+  table.layers{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.layers th{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:left;padding:4px 6px;font-weight:500}
+  table.layers td{padding:3px 6px}
+  table.layers input{width:100%;background:var(--shell);border:1px solid var(--edge);border-radius:6px;padding:4px 6px;font-family:var(--mono);font-size:12px}
+  .composer .foot{display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap}
+  .msg{font-size:13px;color:var(--dim)}
+  .msg.error{color:var(--alert)}
+
+  /* setup + files */
+  table.kv{border-collapse:collapse;font-size:13px;width:100%;max-width:900px}
+  table.kv td{padding:6px 10px;border-bottom:1px solid var(--edge-soft)}
+  table.kv td:last-child{font-family:var(--mono);text-align:right;color:var(--ink)}
+  table.kv td:first-child{color:var(--dim)}
+  .files a{display:block;padding:10px 0;border-bottom:1px solid var(--edge-soft);text-decoration:none}
+  .files a small{display:block;color:var(--dim);font-size:12px}
 </style>
 </head>
 <body>
-<header>
-  <h1>REGOLIT</h1>
-  <p>REworking and Gardening Of Lunar Impacted Terrains: a Monte Carlo model of cratering, ejecta and regolith gardening with a layered subsurface.</p>
-</header>
-<main>
-  <section class="panel">
-    <form id="form" onsubmit="return false;">
-      <div id="groups"></div>
-      <details>
-        <summary>Initial subsurface layers</summary>
-        <small style="color:var(--muted)">Rows are bottom-up within a class: the first row of a class is the deepest layer, the last row is the surface. The model uses class 1 for the whole grid when it exists, otherwise class 0. Fractions are normalized.</small>
-        <table class="layers">
-          <thead><tr><th>class</th><th>thickness [m]</th><th>regolith</th><th>ice</th><th>soot</th><th></th></tr></thead>
-          <tbody id="layers"></tbody>
-        </table>
-        <button type="button" id="addLayer" style="margin-top:6px">Add layer</button>
-      </details>
-      <div class="actions">
-        <button type="button" class="primary" id="run">Run model</button>
-        <button type="button" id="reset">Reset defaults</button>
-        <span id="status"></span>
-      </div>
-    </form>
-    <details id="previous" style="margin-top:10px">
-      <summary>Previous runs</summary>
-      <ul id="runs" style="margin:6px 0; padding-left:18px; font-size:12.5px"></ul>
-    </details>
-  </section>
+<div class="bar">
+  <div class="logo"></div>
+  <div class="brand">Regolit</div>
+  <div class="brand-sub">impact gardening of a layered regolith</div>
+  <div class="spacer"></div>
+  <div class="bar-status" id="barStatus">connecting&hellip;</div>
+</div>
 
-  <section class="panel results">
-    <div id="empty">
-      <h2>Results</h2>
-      <p style="color:var(--muted)">Set the parameters and press <b>Run model</b>. Runs with the default parameters take about a second; large grids or long durations take longer. Results are kept on the server for a while and can be shared with the page link.</p>
-    </div>
-    <div id="results" class="hidden">
-      <h2 id="title">Run</h2>
-      <div class="summary" id="summary"></div>
-      <div class="controls">
-        <label>Map <select id="kind"></select></label>
-        <label>Step <input type="range" id="step" min="0" max="0" value="0"></label>
-        <span id="time"></span>
-        <button type="button" id="play">Play</button>
+<div class="shell">
+  <aside class="rail">
+    <button class="btn primary big" id="newBtn">+ New run</button>
+    <div class="rail-head"><span class="eyebrow" id="runCount">0 runs</span><input id="filter" placeholder="filter runs" aria-label="filter runs"></div>
+    <div class="list" id="list"></div>
+  </aside>
+
+  <main class="stage">
+    <section id="empty" class="empty">
+      <h2>Nothing selected</h2>
+      <p>Pick a run on the left to see its maps and cross-sections, or start a new run.</p>
+      <button class="btn primary" id="emptyNew">New run</button>
+    </section>
+
+    <section id="composer" class="composer hide">
+      <h1>Set up a run</h1>
+      <p class="lead">A random impactor population gardens a periodic patch of regolith. Every field has a default from <span class="mono">config/config.cfg</span>; hover a label for its meaning.</p>
+      <div class="groups" id="groups"></div>
+      <div class="group" style="margin-top:14px">
+        <span class="eyebrow">Initial subsurface layers</span>
+        <div class="help" style="color:var(--dim);font-size:12px;margin-bottom:8px">Rows are bottom-up within a class: the first row of a class is the deepest layer, the last one is the surface. Class 1 is used for the whole grid when it exists, otherwise class 0. Fractions are normalized.</div>
+        <table class="layers"><thead><tr><th>class</th><th>thickness [m]</th><th>regolith</th><th>ice</th><th>soot</th><th></th></tr></thead><tbody id="layers"></tbody></table>
+        <button type="button" class="ghost" id="addLayer" style="margin-top:8px">+ layer</button>
       </div>
-      <div class="figures">
-        <img id="map" alt="map">
-        <div>
-          <img id="profile" alt="cross-section">
-          <p class="links" id="links"></p>
+      <div class="foot">
+        <button class="btn primary" id="runBtn">Run model</button>
+        <button class="btn" id="resetBtn">Reset defaults</button>
+        <button class="btn" id="cancelBtn">Cancel</button>
+        <span class="msg" id="msg"></span>
+      </div>
+    </section>
+
+    <section id="runView" class="hide">
+      <header class="run-head">
+        <div><h1 id="runTitle"></h1><div class="id" id="runId"></div></div>
+        <div class="actions">
+          <button class="btn" id="editBtn" title="open these parameters in the run setup">Edit &amp; run again</button>
+          <button class="btn danger" id="deleteBtn">Delete</button>
         </div>
-        <img id="histograms" class="wide" alt="histograms">
+      </header>
+      <div class="statusline"><span class="pill ok">&#9679; done</span><span id="runMeta"></span></div>
+      <nav class="tabs">
+        <button data-tab="maps" class="on">Maps</button>
+        <button data-tab="figures">Figures</button>
+        <button data-tab="setup">Setup</button>
+        <button data-tab="files">Files</button>
+      </nav>
+
+      <div id="tab-maps" class="tab">
+        <div class="chips" id="kinds"></div>
+        <div class="duo">
+          <div>
+            <div class="mapwrap"><img id="map" alt="map"><svg id="overlay" preserveAspectRatio="none"></svg></div>
+            <div class="controls">
+              <label>step <input type="range" id="step" min="0" max="0" value="0"></label>
+              <span class="mono" id="time"></span>
+              <button class="ghost" id="play">Play</button>
+              <span id="sunControls">
+                <label>sun azimuth <select id="az"></select></label>
+                <label>elevation <select id="alt"></select></label>
+              </span>
+            </div>
+            <div class="caption" id="mapCaption"></div>
+          </div>
+          <div class="tiles" id="tiles"></div>
+        </div>
+
+        <div class="panel">
+          <div class="section-head">
+            <span class="eyebrow">Cross-section</span>
+            <span class="seg" id="axisSeg"><button data-axis="x" class="on">W&ndash;E line</button><button data-axis="y">S&ndash;N line</button></span>
+            <label>position <input type="range" id="secPos"> <span class="mono" id="secPosLabel"></span></label>
+            <label>depth below surface <input type="number" id="secDepth" value="2" min="0.1" step="0.5"> m</label>
+          </div>
+          <img id="section" alt="subsurface cross-section">
+          <div class="caption">Click the map to place the line, or drag the slider. Colors mix by composition (regolith, ice, soot); the section shows the final state at full model resolution, and the dashed curve is the surface at the selected step.</div>
+        </div>
       </div>
-    </div>
-  </section>
-</main>
-<footer>
-  The model follows Richardson et al. (2009) and adds an efficient layered description of the subsurface. Source and documentation: the <code>surface_evolution</code> repository. Maps are indexed with x to the right and y upward; the domain is periodic.
-</footer>
+
+      <div id="tab-figures" class="tab hide">
+        <div class="panel" style="margin-top:0"><img id="histograms" alt="histograms"><div class="caption">Size distributions of the impactors, of all craters formed and of those still visible at the end (depth changed by less than 50%), and the current depths of the visible craters.</div></div>
+      </div>
+
+      <div id="tab-setup" class="tab hide">
+        <div class="duo">
+          <table class="kv" id="setupTable"></table>
+          <div>
+            <span class="eyebrow">Initial layers (bottom-up)</span>
+            <table class="kv" id="setupLayers" style="margin-top:6px"></table>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-files" class="tab hide"><div class="files" id="files"></div></div>
+    </section>
+  </main>
+</div>
+<footer><span>REGOLIT v1.0</span><span>&middot;</span><span>Lior Rubanenko</span></footer>
 
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  let meta = null;
-  let current = null;
-  let playing = null;
+  const S = { meta: null, runs: [], current: null, kind: "shaded_relief", species: "soot", step: 0, axis: "x", at: 0, depth: 2, az: 315, alt: 25, playing: null, sectionTimer: null };
 
-  function fmt(v) {
-    if (v === null || v === undefined) return "";
+  // ---------- helpers ----------
+  function fmt(v, digits) {
+    if (v === null || v === undefined || Number.isNaN(v)) return "";
     const a = Math.abs(v);
-    if (a !== 0 && (a < 1e-3 || a >= 1e6)) return Number(v).toExponential(3).replace(/\.?0+e/, "e");
+    if (a !== 0 && (a < 1e-3 || a >= 1e6)) return Number(v).toExponential(digits === undefined ? 3 : digits).replace(/\.?0+e/, "e");
     return String(Math.round(v * 1e6) / 1e6);
   }
+  function fmtInt(v) { return v === null || v === undefined ? "?" : Number(v).toLocaleString(); }
+  async function api(path, options) {
+    const r = await fetch(path, options);
+    if (!r.ok) { let d = r.statusText; try { d = (await r.json()).detail || d; } catch (e) {} throw new Error(d); }
+    return r.json();
+  }
+  function show(view) {
+    ["empty", "composer", "runView"].forEach(id => $(id).classList.toggle("hide", id !== view));
+  }
+  function setMsg(text, isError) { const m = $("msg"); m.textContent = text; m.classList.toggle("error", !!isError); }
 
-  function buildForm() {
+  // ---------- rail ----------
+  async function refreshRuns() {
+    try { S.runs = await api("/api/runs"); } catch (e) { S.runs = []; }
+    renderList();
+    $("barStatus").innerHTML = "<b>" + S.runs.length + "</b> runs stored";
+  }
+  function renderList() {
+    const q = $("filter").value.trim().toLowerCase();
+    const list = $("list");
+    list.innerHTML = "";
+    const runs = S.runs.filter(r => !q || (r.id + " " + JSON.stringify(r.parameters)).toLowerCase().includes(q));
+    $("runCount").textContent = runs.length + (runs.length === 1 ? " run" : " runs");
+    if (!runs.length) { list.innerHTML = '<div class="caption" style="padding:8px 4px">No runs yet.</div>'; return; }
+    runs.forEach(r => {
+      const p = r.parameters || {};
+      const card = document.createElement("div");
+      card.className = "card" + (S.current && S.current.id === r.id ? " on" : "");
+      card.title = r.id;
+      card.innerHTML = '<div class="title"><b>' + fmt(p.regionWidth) + ' m &middot; ' + fmt(p.resolution) + ' m/px &middot; ' + fmt(p.endTime) + ' Ma</b>' +
+        '<small>' + fmtInt(r.visible_craters) + ' craters &middot; seed ' + fmt(p.randomSeed) + ' &middot; ' + (r.created || r.id).slice(0, 16) + '</small></div>' +
+        '<span class="pill ok">&#9679; done</span>';
+      card.onclick = () => loadRun(r.id);
+      list.appendChild(card);
+    });
+  }
+
+  // ---------- composer ----------
+  function buildComposer() {
     const groups = {};
-    meta.parameters.forEach(p => { (groups[p.group] = groups[p.group] || []).push(p); });
+    S.meta.parameters.forEach(p => { (groups[p.group] = groups[p.group] || []).push(p); });
     const container = $("groups");
     container.innerHTML = "";
-    let first = true;
     for (const [group, params] of Object.entries(groups)) {
-      const details = document.createElement("details");
-      if (first) { details.open = true; first = false; }
-      const summary = document.createElement("summary");
-      summary.textContent = group;
-      details.appendChild(summary);
+      const box = document.createElement("div");
+      box.className = "group";
+      box.innerHTML = '<span class="eyebrow">' + group + "</span>";
       params.forEach(p => {
         const row = document.createElement("div");
         row.className = "row";
         const label = document.createElement("label");
         label.htmlFor = "p_" + p.name;
-        label.innerHTML = p.label + (p.unit ? " <span style='color:var(--muted)'>[" + p.unit + "]</span>" : "") +
-          (p.description ? "<small>" + p.description + "</small>" : "");
+        label.title = p.description || "";
+        label.innerHTML = p.label + (p.unit ? '<span class="unit">' + p.unit + "</span>" : "") + (p.description ? '<span class="help">' + p.description + "</span>" : "");
         let input;
-        if (p.kind === "choice") {
+        if (p.kind === "choice" || p.kind === "bool") {
           input = document.createElement("select");
-          for (const [value, text] of Object.entries(p.choices)) {
-            const opt = document.createElement("option"); opt.value = value; opt.textContent = text; input.appendChild(opt);
-          }
-        } else if (p.kind === "bool") {
-          input = document.createElement("select");
-          [["0", "off"], ["1", "on"]].forEach(([value, text]) => { const opt = document.createElement("option"); opt.value = value; opt.textContent = text; input.appendChild(opt); });
+          const options = p.kind === "bool" ? [["0", "off"], ["1", "on"]] : Object.entries(p.choices);
+          options.forEach(([v, t]) => { const o = document.createElement("option"); o.value = v; o.textContent = t; input.appendChild(o); });
         } else {
           input = document.createElement("input");
-          input.type = "number";
-          input.step = p.kind === "int" ? "1" : "any";
-          input.min = p.min; input.max = p.max;
+          input.type = "number"; input.step = p.kind === "int" ? "1" : "any"; input.min = p.min; input.max = p.max;
           input.title = "between " + p.min + " and " + p.max;
         }
         input.id = "p_" + p.name;
-        input.dataset.name = p.name;
-        row.appendChild(label);
-        row.appendChild(input);
-        details.appendChild(row);
+        row.appendChild(label); row.appendChild(input);
+        box.appendChild(row);
       });
-      container.appendChild(details);
+      container.appendChild(box);
     }
-    setDefaults();
   }
-
-  function setDefaults() {
-    meta.parameters.forEach(p => {
+  function setParameters(values) {
+    S.meta.parameters.forEach(p => {
       const input = $("p_" + p.name);
-      const v = meta.defaults[p.name];
+      const v = values[p.name] === undefined || values[p.name] === null ? S.meta.defaults[p.name] : values[p.name];
       input.value = (p.kind === "choice" || p.kind === "bool" || p.kind === "int") ? String(Math.round(v)) : fmt(v);
       input.classList.remove("invalid");
     });
-    setLayers(meta.layers);
   }
-
   function layerRow(values) {
     const tr = document.createElement("tr");
-    values.forEach((v, k) => {
-      const td = document.createElement("td");
-      const input = document.createElement("input");
-      input.type = "number"; input.step = k === 0 ? "1" : "any"; input.value = fmt(v);
-      td.appendChild(input); tr.appendChild(td);
-    });
-    const td = document.createElement("td");
-    const remove = document.createElement("button");
-    remove.type = "button"; remove.textContent = "x"; remove.title = "remove layer";
-    remove.onclick = () => tr.remove();
-    td.appendChild(remove); tr.appendChild(td);
+    values.forEach((v, k) => { const td = document.createElement("td"); const i = document.createElement("input"); i.type = "number"; i.step = k === 0 ? "1" : "any"; i.value = fmt(v); td.appendChild(i); tr.appendChild(td); });
+    const td = document.createElement("td"); const b = document.createElement("button"); b.type = "button"; b.className = "ghost"; b.textContent = "x"; b.title = "remove layer"; b.onclick = () => tr.remove(); td.appendChild(b); tr.appendChild(td);
     return tr;
   }
-
-  function setLayers(rows) {
-    const body = $("layers");
-    body.innerHTML = "";
-    rows.forEach(r => body.appendChild(layerRow(r)));
-  }
-
+  function setLayers(rows) { const body = $("layers"); body.innerHTML = ""; rows.forEach(r => body.appendChild(layerRow(r))); }
   function readLayers() {
     const rows = [];
     for (const tr of $("layers").querySelectorAll("tr")) {
-      const values = [...tr.querySelectorAll("input")].map(i => parseFloat(i.value));
-      if (values.some(v => Number.isNaN(v))) throw new Error("every layer cell needs a number");
-      rows.push(values);
+      const v = [...tr.querySelectorAll("input")].map(i => parseFloat(i.value));
+      if (v.some(Number.isNaN)) throw new Error("every layer cell needs a number");
+      rows.push(v);
     }
-    if (rows.length === 0) throw new Error("at least one layer is required");
+    if (!rows.length) throw new Error("at least one layer is required");
     return rows;
   }
-
   function readParameters() {
-    const parameters = {};
-    let bad = null;
-    meta.parameters.forEach(p => {
-      const input = $("p_" + p.name);
-      const v = parseFloat(input.value);
+    const out = {}; let bad = null;
+    S.meta.parameters.forEach(p => {
+      const input = $("p_" + p.name); const v = parseFloat(input.value);
       const ok = Number.isFinite(v) && v >= p.min && v <= p.max;
       input.classList.toggle("invalid", !ok);
       if (!ok && !bad) bad = p.label + " must be between " + p.min + " and " + p.max;
-      parameters[p.name] = v;
+      out[p.name] = v;
     });
     if (bad) throw new Error(bad);
-    return parameters;
+    return out;
   }
-
-  function setStatus(text, isError) {
-    const el = $("status");
-    el.textContent = text;
-    el.classList.toggle("error", !!isError);
+  function openComposer(values, layers) {
+    setParameters(values || {}); setLayers(layers || S.meta.layers); setMsg("");
+    document.querySelectorAll(".card").forEach(c => c.classList.remove("on"));
+    show("composer"); window.scrollTo(0, 0);
   }
-
-  async function api(path, options) {
-    const response = await fetch(path, options);
-    if (!response.ok) {
-      let detail = response.statusText;
-      try { detail = (await response.json()).detail || detail; } catch (e) {}
-      throw new Error(detail);
-    }
-    return response.json();
-  }
-
-  async function runModel() {
+  async function submitRun() {
     let body;
-    try { body = { parameters: readParameters(), layers: readLayers() }; }
-    catch (e) { setStatus(e.message, true); return; }
-    $("run").disabled = true;
-    setStatus("Running...");
+    try { body = { parameters: readParameters(), layers: readLayers() }; } catch (e) { setMsg(e.message, true); return; }
+    $("runBtn").disabled = true; setMsg("Running…");
     const t0 = performance.now();
     try {
       const summary = await api("/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      setStatus("Done in " + ((performance.now() - t0) / 1000).toFixed(1) + " s.");
+      setMsg("Done in " + ((performance.now() - t0) / 1000).toFixed(1) + " s.");
+      await refreshRuns();
       showRun(summary);
-      history.replaceState(null, "", "?run=" + summary.id);
-      refreshRuns();
-    } catch (e) {
-      setStatus(e.message, true);
-    } finally {
-      $("run").disabled = false;
-    }
+    } catch (e) { setMsg(e.message, true); }
+    finally { $("runBtn").disabled = false; }
   }
 
+  // ---------- run view ----------
+  async function loadRun(id) {
+    try { const summary = await api("/api/runs/" + encodeURIComponent(id)); showRun(summary); }
+    catch (e) { $("barStatus").innerHTML = '<span style="color:var(--alert)">run ' + id + ' is not available</span>'; }
+  }
   function showRun(summary) {
-    current = summary;
+    S.current = summary;
     stopPlaying();
-    $("empty").classList.add("hidden");
-    $("results").classList.remove("hidden");
-    $("title").textContent = "Run " + summary.id;
-    const cells = summary.grid + " x " + summary.grid + " @ " + fmt(summary.resolution) + " m";
-    const items = [
-      [summary.total_craters === null ? "?" : summary.total_craters.toLocaleString(), "craters formed"],
-      [summary.visible_craters.toLocaleString(), "visible at the end"],
-      [fmt(summary.parameters.endTime) + " Ma", summary.steps.length + " output steps"],
-      [cells, "output grid"],
-      [fmt(summary.elevation_min) + " to " + fmt(summary.elevation_max) + " m", "elevation range"],
-      [summary.duration_s + " s", "run time"],
+    const p = summary.parameters;
+    $("runTitle").innerHTML = fmt(p.regionWidth) + " m &times; " + fmt(p.regionWidth) + " m &middot; " + fmt(p.resolution) + " m/px &middot; " + fmt(p.endTime) + " Ma";
+    $("runId").textContent = summary.id;
+    $("runMeta").textContent = summary.duration_s + " s · " + summary.created + " · " + fmtInt(summary.total_craters) + " craters formed, " + fmtInt(summary.visible_craters) + " visible at the end";
+    // step slider
+    const step = $("step"); step.max = summary.steps.length - 1; step.value = summary.steps.length - 1; S.step = summary.steps.length - 1;
+    // cross-section slider
+    const half = p.regionWidth / 2, res = summary.full_resolution || summary.resolution;
+    const pos = $("secPos"); pos.min = -half + res / 2; pos.max = half - res / 2; pos.step = res; pos.value = 0; S.at = 0;
+    $("section").parentElement.classList.toggle("hide", !summary.has_subsurface);
+    renderTiles(summary); renderKinds(); renderSetup(summary); renderFiles(summary);
+    show("runView"); selectTab("maps");
+    updateMap(); updateSection(); refreshHistograms();
+    history.replaceState(null, "", "?run=" + summary.id);
+    renderList();
+  }
+  function renderTiles(s) {
+    const p = s.parameters;
+    const dz = s.elevation_max - s.elevation_min;
+    const tiles = [
+      [fmtInt(s.total_craters), "", "craters formed", "Impactors larger than " + fmt(p.minimumImpactorDiameter) + " m over " + fmt(p.endTime) + " Ma on " + fmt(Math.round(p.regionWidth * p.regionWidth / 1e6 * 1000) / 1000) + " km²."],
+      [fmtInt(s.visible_craters), s.total_craters ? '<small>' + Math.round(100 * s.visible_craters / s.total_craters) + '%</small>' : "", "still visible", "Craters whose depth changed by less than half; the rest were buried or overprinted."],
+      [fmt(Math.round(dz * 100) / 100), "<small>m</small>", "relief", "Elevation range over all steps: " + fmt(Math.round(s.elevation_min * 100) / 100) + " to " + fmt(Math.round(s.elevation_max * 100) / 100) + " m."],
+      [s.grid + "&times;" + s.grid, "", "map grid", "Maps at " + fmt(s.resolution) + " m/px; the model grid is " + s.full_grid + "&times;" + s.full_grid + " at " + fmt(s.full_resolution) + " m/px. " + s.steps.length + " steps, " + s.duration_s + " s of compute."],
     ];
-    $("summary").innerHTML = items.map(([v, l]) => "<div><b>" + v + "</b><span>" + l + "</span></div>").join("");
-    const kind = $("kind");
-    if (!kind.options.length) {
-      for (const [value, text] of Object.entries(meta.map_kinds)) {
-        const opt = document.createElement("option"); opt.value = value; opt.textContent = text; kind.appendChild(opt);
-      }
-    }
-    const step = $("step");
-    step.max = summary.steps.length - 1;
-    step.value = summary.steps.length - 1;
-    $("histograms").src = "/api/runs/" + summary.id + "/histograms.png";
-    $("links").innerHTML =
-      '<a href="/api/runs/' + summary.id + '/download.zip">Download all output (zip)</a>' +
-      '<a href="/api/runs/' + summary.id + '/craters.csv">Visible craters (csv)</a>' +
-      '<a id="gif" href="#">Animation (gif)</a>' +
-      '<a href="/api/runs/' + summary.id + '/log" target="_blank">Log</a>';
-    $("gif").onclick = (e) => { e.preventDefault(); window.open("/api/runs/" + summary.id + "/animation/" + $("kind").value + ".gif"); };
-    updateFigures();
-    preload();
+    $("tiles").innerHTML = tiles.map(([n, u, e, d]) => '<div class="tile"><div class="num">' + n + u + '</div><div class="eyebrow">' + e + '</div><p>' + d + '</p></div>').join("");
   }
-
-  function updateFigures() {
-    if (!current) return;
-    const step = parseInt($("step").value, 10);
-    $("map").src = "/api/runs/" + current.id + "/map/" + $("kind").value + "/" + step + ".png";
-    $("profile").src = "/api/runs/" + current.id + "/profile/" + step + ".png";
-    $("time").textContent = "t = " + fmt(current.times[step]) + " Ma";
-  }
-
-  function preload() {
-    if (!current) return;
-    const kind = $("kind").value;
-    current.steps.forEach((s, k) => { const img = new Image(); img.src = "/api/runs/" + current.id + "/map/" + kind + "/" + k + ".png"; });
-  }
-
-  function stopPlaying() {
-    if (playing) { clearInterval(playing); playing = null; $("play").textContent = "Play"; }
-  }
-
-  function togglePlay() {
-    if (playing) { stopPlaying(); return; }
-    $("play").textContent = "Pause";
-    playing = setInterval(() => {
-      const step = $("step");
-      step.value = (parseInt(step.value, 10) + 1) % (parseInt(step.max, 10) + 1);
-      updateFigures();
-    }, 700);
-  }
-
-  async function refreshRuns() {
-    let runs = [];
-    try { runs = await api("/api/runs"); } catch (e) { return; }
-    const list = $("runs");
-    list.innerHTML = "";
-    if (!runs.length) { list.innerHTML = "<li style='color:var(--muted)'>none yet</li>"; return; }
-    runs.slice(0, 30).forEach(r => {
-      const li = document.createElement("li");
-      const p = r.parameters || {};
-      li.innerHTML = '<a href="?run=' + r.id + '">' + r.id + '</a> &middot; ' + fmt(p.regionWidth) + ' m @ ' + fmt(p.resolution) +
-        ' m, ' + fmt(p.endTime) + ' Ma, ' + (r.visible_craters === null ? '?' : r.visible_craters) + ' craters ' +
-        '<button type="button" title="delete run" style="padding:0 5px; margin-left:4px">x</button>';
-      li.querySelector("a").onclick = (e) => { e.preventDefault(); loadRun(r.id); };
-      li.querySelector("button").onclick = async () => {
-        if (!confirm("Delete run " + r.id + "?")) return;
-        try { await api("/api/runs/" + r.id + "/delete", { method: "POST" }); } catch (e) { setStatus(e.message, true); }
-        if (current && current.id === r.id) { $("results").classList.add("hidden"); $("empty").classList.remove("hidden"); current = null; history.replaceState(null, "", location.pathname); }
-        refreshRuns();
-      };
-      list.appendChild(li);
+  function renderKinds() {
+    const kinds = $("kinds");
+    kinds.innerHTML = "";
+    const chips = [["shaded_relief", "Shaded relief"], ["elevation", "Elevation"], ["surface", "Surface composition"], ["integrated", "Composition to " + fmt(S.current.parameters.depthToIntegrate) + " m"]];
+    chips.forEach(([key, label]) => {
+      const b = document.createElement("button"); b.className = "chip" + (currentChip() === key ? " on" : ""); b.textContent = label;
+      b.onclick = () => { S.kind = (key === "surface" || key === "integrated") ? key + "_" + S.species : key; renderKinds(); updateMap(); };
+      kinds.appendChild(b);
     });
+    const isComposition = S.kind.startsWith("surface_") || S.kind.startsWith("integrated_");
+    const seg = document.createElement("span"); seg.className = "seg" + (isComposition ? "" : " hide");
+    ["soot", "ice", "regolith"].forEach(sp => {
+      const b = document.createElement("button"); b.textContent = sp; b.className = S.species === sp ? "on" : "";
+      b.onclick = () => { S.species = sp; S.kind = S.kind.split("_")[0] + "_" + sp; renderKinds(); updateMap(); };
+      seg.appendChild(b);
+    });
+    kinds.appendChild(seg);
+    $("sunControls").classList.toggle("hide", S.kind !== "shaded_relief");
+  }
+  function currentChip() { return S.kind.startsWith("surface_") ? "surface" : S.kind.startsWith("integrated_") ? "integrated" : S.kind; }
+  function mapUrl(step) {
+    let url = "/api/runs/" + S.current.id + "/map/" + S.kind + "/" + step + ".png";
+    if (S.kind === "shaded_relief") url += "?az=" + S.az + "&alt=" + S.alt;
+    return url;
+  }
+  function updateMap() {
+    if (!S.current) return;
+    S.step = parseInt($("step").value, 10);
+    $("map").src = mapUrl(S.step);
+    $("time").textContent = "t = " + fmt(S.current.times[S.step]) + " Ma";
+    const p = S.current.parameters;
+    $("mapCaption").innerHTML = S.meta.map_kinds[S.kind] + " &middot; " + fmt(p.regionWidth) + " m across at " + fmt(S.current.resolution) + " m/px" +
+      (S.kind === "shaded_relief" ? " &middot; hillshade of the elevation map, no vertical exaggeration" : "") + ". Click the map to place the cross-section line.";
+    S.current.steps.forEach((_, k) => { if (k !== S.step) { const i = new Image(); i.src = mapUrl(k); } });   // preload for smooth stepping
+    drawOverlay();
+  }
+  function geometry() { return S.meta.map_geometry[S.kind === "shaded_relief" ? "without_colorbar" : "with_colorbar"]; }
+  function drawOverlay() {
+    const g = geometry(), e = S.current.extent, svg = $("overlay");
+    svg.setAttribute("viewBox", "0 0 " + g.width + " " + g.height);
+    const gx = (x) => g.x0 + (x - e[0]) / (e[1] - e[0]) * (g.x1 - g.x0);
+    const gy = (y) => g.y1 - (y - e[2]) / (e[3] - e[2]) * (g.y1 - g.y0);
+    let line;
+    if (S.axis === "x") { const y = gy(S.at); line = { x1: g.x0, y1: y, x2: g.x1, y2: y }; }
+    else { const x = gx(S.at); line = { x1: x, y1: g.y0, x2: x, y2: g.y1 }; }
+    svg.innerHTML = S.current.has_subsurface
+      ? '<line x1="' + line.x1 + '" y1="' + line.y1 + '" x2="' + line.x2 + '" y2="' + line.y2 + '" stroke="#0f1419" stroke-width="3.5" stroke-opacity=".6"/>' +
+        '<line x1="' + line.x1 + '" y1="' + line.y1 + '" x2="' + line.x2 + '" y2="' + line.y2 + '" stroke="#e5a15e" stroke-width="1.6" stroke-dasharray="7 4"/>'
+      : "";
+  }
+  function onMapClick(event) {
+    if (!S.current || !S.current.has_subsurface) return;
+    const img = $("map"), rect = img.getBoundingClientRect(), g = geometry(), e = S.current.extent;
+    const px = (event.clientX - rect.left) / rect.width * g.width, py = (event.clientY - rect.top) / rect.height * g.height;
+    if (px < g.x0 || px > g.x1 || py < g.y0 || py > g.y1) return;
+    const x = e[0] + (px - g.x0) / (g.x1 - g.x0) * (e[1] - e[0]);
+    const y = e[2] + (g.y1 - py) / (g.y1 - g.y0) * (e[3] - e[2]);
+    S.at = S.axis === "x" ? y : x;
+    $("secPos").value = S.at;
+    drawOverlay(); updateSection();
+  }
+  function updateSection() {
+    if (!S.current || !S.current.has_subsurface) return;
+    S.at = parseFloat($("secPos").value); S.depth = Math.max(0.1, parseFloat($("secDepth").value) || 2);
+    $("secPosLabel").textContent = (S.axis === "x" ? "y = " : "x = ") + fmt(Math.round(S.at * 10) / 10) + " m";
+    drawOverlay();
+    clearTimeout(S.sectionTimer);
+    S.sectionTimer = setTimeout(() => {
+      $("section").src = "/api/runs/" + S.current.id + "/section.png?axis=" + S.axis + "&at=" + S.at + "&depth=" + S.depth + "&step=" + S.step;
+    }, 120);
+  }
+  function refreshHistograms() { $("histograms").src = "/api/runs/" + S.current.id + "/histograms.png"; }
+  function renderSetup(s) {
+    $("setupTable").innerHTML = S.meta.parameters.map(p => "<tr><td>" + p.label + (p.unit ? ' <span class="unit">[' + p.unit + "]</span>" : "") + "</td><td>" +
+      (p.kind === "choice" ? (p.choices[String(Math.round(s.parameters[p.name]))] || s.parameters[p.name]) : p.kind === "bool" ? (s.parameters[p.name] ? "on" : "off") : fmt(s.parameters[p.name])) + "</td></tr>").join("");
+    $("setupLayers").innerHTML = "<tr><td>class</td><td>thickness · regolith / ice / soot</td></tr>" + s.layers.map(r => "<tr><td>" + r[0] + "</td><td>" + fmt(r[1]) + " m · " + fmt(r[2]) + " / " + fmt(r[3]) + " / " + fmt(r[4]) + "</td></tr>").join("");
+  }
+  function renderFiles(s) {
+    const base = "/api/runs/" + s.id;
+    $("files").innerHTML =
+      '<a href="' + base + '/download.zip">Everything (zip)<small>config, binary output maps, log and summary of run ' + s.id + '</small></a>' +
+      '<a href="' + base + '/craters.csv">Visible craters (csv)<small>x, y, diameter, current depth and initial depth of every crater still visible</small></a>' +
+      '<a href="#" id="gifLink">Animation (gif)<small>all ' + s.steps.length + ' steps of the currently selected map</small></a>' +
+      '<a href="' + base + '/log" target="_blank">Model log<small>the log written by the model during this run</small></a>';
+    $("gifLink").onclick = (e) => { e.preventDefault(); window.open(base + "/animation/" + S.kind + ".gif"); };
+  }
+  function selectTab(name) {
+    document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
+    document.querySelectorAll(".tab").forEach(t => t.classList.toggle("hide", t.id !== "tab-" + name));
+  }
+  function stopPlaying() { if (S.playing) { clearInterval(S.playing); S.playing = null; $("play").textContent = "Play"; } }
+  function togglePlay() {
+    if (S.playing) { stopPlaying(); return; }
+    $("play").textContent = "Pause";
+    S.playing = setInterval(() => { const s = $("step"); s.value = (parseInt(s.value, 10) + 1) % (parseInt(s.max, 10) + 1); updateMap(); updateSection(); }, 700);
+  }
+  async function deleteCurrent() {
+    if (!S.current || !confirm("Delete run " + S.current.id + "?")) return;
+    try { await api("/api/runs/" + S.current.id + "/delete", { method: "POST" }); } catch (e) { alert(e.message); return; }
+    S.current = null; history.replaceState(null, "", location.pathname); show("empty"); refreshRuns();
   }
 
-  async function loadRun(runId) {
-    try {
-      const summary = await api("/api/runs/" + encodeURIComponent(runId));
-      meta.parameters.forEach(p => { if (summary.parameters[p.name] !== null && summary.parameters[p.name] !== undefined) $("p_" + p.name).value = fmt(summary.parameters[p.name]); });
-      setLayers(summary.layers);
-      showRun(summary);
-      history.replaceState(null, "", "?run=" + summary.id);
-      setStatus("");
-    } catch (e) {
-      setStatus("Run " + runId + " is no longer available.", true);
-    }
-  }
-
+  // ---------- init ----------
   async function init() {
-    try {
-      meta = await api("/api/meta");
-    } catch (e) {
-      setStatus("Cannot reach the server: " + e.message, true);
-      return;
-    }
-    buildForm();
-    $("run").onclick = runModel;
-    $("reset").onclick = () => { setDefaults(); setStatus(""); };
+    try { S.meta = await api("/api/meta"); } catch (e) { $("barStatus").innerHTML = '<span style="color:var(--alert)">cannot reach the server: ' + e.message + "</span>"; return; }
+    S.kind = S.meta.default_kind || "shaded_relief";
+    buildComposer(); setParameters({}); setLayers(S.meta.layers);
+    [0, 45, 90, 135, 180, 225, 270, 315].forEach(a => { const o = document.createElement("option"); o.value = a; o.textContent = a + "°"; if (a === S.az) o.selected = true; $("az").appendChild(o); });
+    [10, 25, 45, 65].forEach(a => { const o = document.createElement("option"); o.value = a; o.textContent = a + "°"; if (a === S.alt) o.selected = true; $("alt").appendChild(o); });
+    $("newBtn").onclick = () => openComposer({}, S.meta.layers);
+    $("emptyNew").onclick = () => openComposer({}, S.meta.layers);
+    $("runBtn").onclick = submitRun;
+    $("resetBtn").onclick = () => { setParameters({}); setLayers(S.meta.layers); setMsg(""); };
+    $("cancelBtn").onclick = () => show(S.current ? "runView" : "empty");
     $("addLayer").onclick = () => $("layers").appendChild(layerRow([0, 1, 1, 0, 0]));
-    $("kind").onchange = () => { updateFigures(); preload(); };
-    $("step").oninput = updateFigures;
+    $("filter").oninput = renderList;
+    $("step").oninput = () => { updateMap(); updateSection(); };
     $("play").onclick = togglePlay;
-    refreshRuns();
+    $("az").onchange = () => { S.az = parseInt($("az").value, 10); updateMap(); };
+    $("alt").onchange = () => { S.alt = parseInt($("alt").value, 10); updateMap(); };
+    $("map").onclick = onMapClick;
+    $("axisSeg").querySelectorAll("button").forEach(b => b.onclick = () => { S.axis = b.dataset.axis; $("axisSeg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); updateSection(); });
+    $("secPos").oninput = updateSection;
+    $("secDepth").onchange = updateSection;
+    document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => selectTab(b.dataset.tab));
+    $("editBtn").onclick = () => openComposer(S.current.parameters, S.current.layers);
+    $("deleteBtn").onclick = deleteCurrent;
+    await refreshRuns();
     const runId = new URLSearchParams(location.search).get("run");
-    if (runId) {
-      await loadRun(runId);
-    }
+    if (runId) await loadRun(runId);
   }
-
   init();
 })();
 </script>

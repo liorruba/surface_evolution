@@ -211,6 +211,40 @@ class Subsurface:
         """Number of layers in every column, ``[y, x]``."""
         return np.array([[self.layers[j][i].shape[0] for i in range(self.n)] for j in range(self.n)])
 
+    # -- compact storage --------------------------------------------------------------------------
+    def save(self, path: PathLike) -> None:
+        """Save as a compressed ``.npz`` (flat layer table plus per-column offsets), much faster to load than the raw file."""
+        counts = self.number_of_layers().ravel()
+        offsets = np.concatenate([[0], np.cumsum(counts)[:-1]])
+        table = np.concatenate([self.layers[j][i] for j in range(self.n) for i in range(self.n)], axis=0)
+        np.savez_compressed(str(path), n=self.n, elevation=self.elevation, counts=counts, offsets=offsets, table=table)
+
+    @classmethod
+    def load(cls, path: PathLike) -> "Subsurface":
+        """Load a ``.npz`` written by :meth:`save`."""
+        with np.load(str(path)) as data:
+            n = int(data["n"])
+            elevation = data["elevation"]
+            counts, offsets, table = data["counts"], data["offsets"], data["table"]
+        layers = [[table[offsets[j * n + i]: offsets[j * n + i] + counts[j * n + i]] for i in range(n)] for j in range(n)]
+        return cls(elevation, layers)
+
+    # -- cross-sections -------------------------------------------------------------------------
+    def section(self, x: np.ndarray, y: np.ndarray, axis: str, at: float) -> Tuple[np.ndarray, List[np.ndarray], np.ndarray]:
+        """Columns along a line through the grid.
+
+        ``axis="x"`` is a west-east line at ``y = at``; ``axis="y"`` a south-north line at ``x = at``.
+        Returns ``(positions, stacks, surface)``: the coordinate along the line of every column, their
+        layer stacks (bottom-up) and their surface elevations.
+        """
+        if axis == "x":
+            j = int(np.argmin(np.abs(y - at)))
+            return x.copy(), [self.layers[j][i] for i in range(self.n)], self.elevation[j, :].copy()
+        if axis == "y":
+            i = int(np.argmin(np.abs(x - at)))
+            return y.copy(), [self.layers[j][i] for j in range(self.n)], self.elevation[:, i].copy()
+        raise ValueError("axis must be 'x' or 'y'")
+
 
 def read_subsurface(path: PathLike) -> Subsurface:
     """Read ``subsurface_XX.out``: per column a header (number of layers, elevation, -1, -1) then the layers."""
@@ -348,12 +382,30 @@ class RegolitOutput:
         return np.stack([reader(species, s) for s in self.steps])
 
     # -- layer stacks ---------------------------------------------------------------------------
-    def has_subsurface(self) -> bool:
-        return (self.output_dir / "subsurface_{}.out".format(self.steps[-1])).exists()
+    def subsurface_steps(self) -> List[str]:
+        """Steps for which layer stacks exist (all steps with ``isPrintSubsurface 1``, the last with 2)."""
+        found = set(list_steps(self.output_dir, "subsurface"))
+        found |= {p.stem.split("_", 1)[1] for p in self.output_dir.glob("subsurface_*.npz")}
+        return [s for s in self.steps if s in found]
+
+    def has_subsurface(self, step: Union[int, str] = -1) -> bool:
+        return self._step(step) in self.subsurface_steps()
 
     def subsurface(self, step: Union[int, str] = -1) -> Subsurface:
-        """Full-resolution layer stacks (requires ``isPrintSubsurface 1``)."""
-        return read_subsurface(self.output_dir / "subsurface_{}.out".format(self._step(step)))
+        """Full-resolution layer stacks of a step, from the raw ``.out`` file or a compact ``.npz`` saved next to it."""
+        suffix = self._step(step)
+        npz = self.output_dir / "subsurface_{}.npz".format(suffix)
+        if npz.exists():
+            return Subsurface.load(npz)
+        return read_subsurface(self.output_dir / "subsurface_{}.out".format(suffix))
+
+    def full_resolution_coordinates(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Cell-center coordinates of the model grid (the layer stacks are not downsampled)."""
+        width = self.config.get("regionWidth", float(self.x[-1] - self.x[0]) + self.resolution)
+        res = self.config.get("resolution", self.resolution)
+        n = int(round(width / res))
+        x = -width / 2 + (np.arange(n) + 0.5) * res
+        return x, x.copy()
 
     # -- text outputs --------------------------------------------------------------------------
     def histogram(self, name: str) -> Tuple[np.ndarray, np.ndarray]:

@@ -4,7 +4,7 @@
 # rebuilds the model, reinstalls the Python environment and restarts the service.
 #
 # Usage (as root or with sudo):
-#   DOMAIN=regolit.liorruba.com PORT=8010 WEB_USER=lior WEB_PASSWORD='secret' bash deploy/setup_droplet.sh
+#   DOMAIN=regolit.liorruba.com PORT=8010 WEB_USER=regolith WEB_PASSWORD='moon' bash deploy/setup_droplet.sh
 #
 # Variables (all optional):
 #   DOMAIN        host name served by nginx            (default regolit.liorruba.com)

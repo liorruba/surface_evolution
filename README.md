@@ -31,7 +31,7 @@ soot = out.surface_fraction("soot", step=3)        # surface composition at a st
 soot_20cm = out.integrated_fraction("soot")        # composition integrated to depthToIntegrate
 bins, counts = out.histogram("craters")            # craters, impactors, depth, existing_craters
 craters = out.craters()                            # visible craters: x, y, diameter, depth, initial_depth
-sub = out.subsurface()                             # full-resolution layer stacks (if isPrintSubsurface)
+sub = out.subsurface()                             # full-resolution layer stacks (isPrintSubsurface 1 or 2)
 ice_at_1m = sub.composition_at_depth(1.0)[..., 1]  # regolith, ice, soot fractions 1 m below the surface
 
 regolit.quicklook(out, save="runs/test/quicklook.png")
@@ -43,8 +43,9 @@ From the shell: `python -m regolit.driver --set endTime=50 --workdir runs/test -
 
 ### Web UI
 `web/` holds a small FastAPI application that runs the model with parameters chosen in the browser
-and shows maps, cross-sections, histograms and an animation of every run. `web/README.md` explains
-how to run it locally and how to deploy it on the droplet with `deploy/setup_droplet.sh`.
+and shows shaded-relief and composition maps, layered subsurface cross-sections along a line the
+user places on the map, histograms and an animation of every run. `web/README.md` explains how to
+run it locally and how to deploy it (on the compute machine behind a tunnel, or on the droplet).
 
 ### An example topography evolution simulation:
 ![Surface evolution](https://github.com/liorruba/surface_evolution/blob/master/craters.gif)

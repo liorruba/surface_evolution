@@ -12,7 +12,7 @@ extern bool isEmplaceEjecta; // Should emplace ejecta? Computationally extensive
 extern bool isEmplaceSecondaries; // Should emplace secondaries? Computationally extensive.
 extern bool runTests; // Run tests?
 extern int randomSeed; // Random number generator seed
-extern bool isPrintSubsurface; // Print subsurface? May be disk space demanding
+extern int isPrintSubsurface; // Print the layer stacks: 0 never, 1 every print step, 2 final step only
 extern double depthToIntegrate; // Depth to integrate when printing integrated subsurface
 extern double downsamplingResolution; // Downsample the results to produce smaller files
 
