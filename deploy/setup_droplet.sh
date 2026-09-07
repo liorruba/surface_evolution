@@ -41,9 +41,10 @@ id -u "$SERVICE_USER" >/dev/null 2>&1 || useradd --system --create-home --home-d
 if [[ -n "$SKIP_GIT" ]]; then
   [[ -f "$APP_DIR/makefile" ]] || { echo "SKIP_GIT is set but $APP_DIR does not contain the code"; exit 1; }
 elif [[ -d "$APP_DIR/.git" ]]; then
-  git -C "$APP_DIR" fetch --quiet origin
-  git -C "$APP_DIR" checkout --quiet "$BRANCH"
-  git -C "$APP_DIR" reset --quiet --hard "origin/$BRANCH"
+  # The tree may be owned by another user from an earlier install; tell git it is trusted.
+  git -c safe.directory="$APP_DIR" -C "$APP_DIR" fetch --quiet origin
+  git -c safe.directory="$APP_DIR" -C "$APP_DIR" checkout --quiet "$BRANCH"
+  git -c safe.directory="$APP_DIR" -C "$APP_DIR" reset --quiet --hard "origin/$BRANCH"
 else
   git clone --quiet --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi
@@ -56,8 +57,10 @@ echo "==> python environment"
 [[ -d "$APP_DIR/venv" ]] || python3 -m venv "$APP_DIR/venv"
 "$APP_DIR/venv/bin/pip" install --quiet --upgrade pip
 "$APP_DIR/venv/bin/pip" install --quiet -r "$APP_DIR/web/requirements.txt"
+# The code and the virtual environment stay owned by root; the service only needs to write runs/.
+chown -R root:root "$APP_DIR"
 mkdir -p "$APP_DIR/runs/web"
-chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR"
+chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR/runs"
 
 echo "==> configuration (/etc/regolit-web.env)"
 {
