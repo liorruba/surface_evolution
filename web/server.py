@@ -67,7 +67,7 @@ CONFIG_TEMPLATE = REPO_ROOT / "config" / "config.cfg"
 LAYERS_TEMPLATE = REPO_ROOT / "config" / "layers.cfg"
 MAX_CONCURRENT = int(os.environ.get("REGOLIT_WEB_CONCURRENCY", "4"))
 MAX_QUEUE = int(os.environ.get("REGOLIT_WEB_QUEUE", "12"))
-RUN_TIMEOUT = float(os.environ.get("REGOLIT_WEB_TIMEOUT", "600"))
+RUN_TIMEOUT = float(os.environ.get("REGOLIT_WEB_TIMEOUT", "7200"))
 MAX_RUNS_KEPT = int(os.environ.get("REGOLIT_WEB_MAX_RUNS", "500"))
 MAX_RUNS_DISK_GB = float(os.environ.get("REGOLIT_WEB_MAX_DISK_GB", "200"))
 # Threads per model run (the slope relaxation is OpenMP-parallel): share the physical cores among
@@ -76,15 +76,19 @@ os.environ.setdefault("OMP_NUM_THREADS", str(max(1, ((os.cpu_count() or 2) // 2)
 AUTH_USER = os.environ.get("REGOLIT_WEB_USER", "")
 AUTH_PASSWORD = os.environ.get("REGOLIT_WEB_PASSWORD", "")
 
-# Hard limits protecting the server, sized for a 16-core / 128 GB machine: a 2000 x 2000 grid runs in
-# about 10 s with 4 threads and needs under 1 GB of memory; one million craters take about a minute.
-# Every saved step writes seven maps of the output grid, so the number of steps is bounded through
-# the total output size rather than by a fixed count.
-MAX_GRID_CELLS = 2000 * 2000
+# Hard limits protecting the server, sized for the compute machine (16 cores, 125 GB, 20 TB data disk).
+# Measured with 8 threads over 100 Ma: 2000 x 2000 cells run in 18 s and need 0.8 GB of memory,
+# 4000 x 4000 cells run in 3 min and need 3.3 GB (memory grows roughly linearly with the cell count,
+# about 0.2 GB per million cells). 8000 x 8000 cells therefore fit in about 15 GB, and four of them
+# at a time in 60 GB; the wall-clock is bounded by the run timeout. One million small craters take
+# about a minute. Every saved step writes seven maps of the output grid, so the number of steps is
+# bounded through the total output size rather than by a fixed count.
+MAX_GRID_SIDE = 8000
+MAX_GRID_CELLS = MAX_GRID_SIDE * MAX_GRID_SIDE
 MAX_STEPS = 500
-MAX_OUTPUT_BYTES = 2 * 1024 * 1024 * 1024
+MAX_OUTPUT_BYTES = 20 * 1024 * 1024 * 1024
 MAPS_PER_STEP = 7
-MAX_IMPACTS = 1_000_000
+MAX_IMPACTS = 20_000_000
 MAX_LAYER_ROWS = 40
 
 RUN_ID_PATTERN = re.compile(r"^[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$")
@@ -106,11 +110,11 @@ WIDE_FIG_SIZE = (8.6, 2.9)   # cross-sections and histograms
 # Parameters the UI exposes: name, label, unit, min, max, kind, description. Values not listed
 # here stay at the repository defaults (config/config.cfg).
 PARAMETERS: List[Dict] = [
-    dict(group="Domain", name="regionWidth", label="Region width", unit="m", min=50, max=5000, kind="number",
-         description="Side of the square, periodic domain."),
-    dict(group="Domain", name="resolution", label="Resolution", unit="m/pixel", min=0.5, max=50, kind="number",
-         description="Cell size. Cells = (width / resolution)^2, at most 2000 x 2000."),
-    dict(group="Domain", name="downsamplingResolution", label="Map output resolution", unit="m/pixel", min=0.5, max=200, kind="number",
+    dict(group="Domain", name="regionWidth", label="Region width", unit="m", min=50, max=1_000_000, kind="number",
+         description="Side of the square, periodic domain; bounded only through the cell count."),
+    dict(group="Domain", name="resolution", label="Resolution", unit="m/pixel", min=0.5, max=1000, kind="number",
+         description="Cell size. Cells = (width / resolution)^2, at most {0} x {0}.".format(MAX_GRID_SIDE)),
+    dict(group="Domain", name="downsamplingResolution", label="Map output resolution", unit="m/pixel", min=0.5, max=5000, kind="number",
          description="Maps are averaged to this resolution before saving (>= resolution). Cross-sections use the full resolution."),
     dict(group="Time", name="endTime", label="Duration", unit="Ma", min=0.1, max=4500, kind="number",
          description="Simulated time."),
@@ -312,7 +316,7 @@ def validate(request: RunRequest) -> Tuple[Dict[str, float], Optional[List[List[
     width, res = effective["regionWidth"], effective["resolution"]
     cells = round(width / res) ** 2
     if cells > MAX_GRID_CELLS:
-        raise HTTPException(400, "the grid would have {:,} cells; the limit is 2000 x 2000. Increase the resolution or shrink the region.".format(int(cells)))
+        raise HTTPException(400, "the grid would have {:,} cells; the limit is {} x {}. Increase the resolution or shrink the region.".format(int(cells), MAX_GRID_SIDE, MAX_GRID_SIDE))
     if effective["downsamplingResolution"] < res:
         overrides["downsamplingResolution"] = res
         effective["downsamplingResolution"] = res

@@ -90,7 +90,7 @@ echo "==> configuration (/etc/regolit-web.env)"
   echo "REGOLIT_BINARY=$APP_DIR/build/apps/regolit_main.run"
   echo "REGOLIT_WEB_RUNS=$APP_DIR/runs/web"
   echo "REGOLIT_WEB_CONCURRENCY=4"
-  echo "REGOLIT_WEB_TIMEOUT=600"
+  echo "REGOLIT_WEB_TIMEOUT=7200"
   echo "REGOLIT_WEB_MAX_RUNS=500"
     echo "REGOLIT_WEB_MAX_DISK_GB=200"
   if [[ -n "$WEB_USER" ]]; then
