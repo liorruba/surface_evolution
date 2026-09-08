@@ -960,12 +960,17 @@ def plot_size_series(axes, series, area_km2: float, exact: Optional[np.ndarray] 
             ax.set_xlim(lo * 0.8, hi * 1.5)
 
 
-def render_figure(run_id: str, name: str, scale: int = 1) -> Path:
-    """One of the run's distribution figures as lines (scale 2 = the high-resolution version)."""
+def render_figure(run_id: str, name: str, scale: int = 1, isochrons: str = "none") -> Path:
+    """One of the run's distribution figures as lines (scale 2 = the high-resolution version); the crater
+    figure carries the equilibrium line and, if asked, the isochrons of one of the published systems."""
     name = FIGURE_ALIASES.get(name, name)
     if name not in FIGURE_NAMES:
         raise HTTPException(404, "unknown figure")
-    target = run_dir(run_id) / "cache" / "{}_{}x.png".format(name, scale)
+    if name != "craters":
+        isochrons = "none"
+    if isochrons != "none" and not scaling.ISOCHRON_SYSTEMS.get(isochrons, {}).get("available"):
+        raise HTTPException(404, "unknown isochron system")
+    target = run_dir(run_id) / "cache" / ("{}_{}x.png".format(name, scale) if isochrons == "none" else "{}_{}x_{}.png".format(name, scale, isochrons))
     if target.exists():
         return target
     out = output_of(run_id)
@@ -998,9 +1003,49 @@ def render_figure(run_id: str, name: str, scale: int = 1) -> Path:
             series = [("craters formed", THEME["accent"], "-", 2.0, bins, counts.astype(float)),
                       ("craters visible at the end", "#7ed0a8", "--", 1.4, bins, np.append(visible_counts, 0).astype(float))]
             plot_size_series(axes, series, area_km2, visible, "visible, exact (one point per crater)")
+            # Reference curves are drawn inside the data's own ranges: the y-limits are frozen first, then the
+            # equilibrium line and the isochrons are clipped to them so they cannot blow up the plot.
+            for ax in axes:
+                ax.relim(); ax.autoscale_view()
+            xlim = axes[0].get_xlim()
+            ylims = [ax.get_ylim() for ax in axes]
+            grid = np.logspace(np.log10(xlim[0]), np.log10(xlim[1]), 200)
+            lo_edges, hi_edges = bins[:-1], bins[1:]
+            n_bins = len(lo_edges)
+
+            def draw_reference(cumulative_of, color, style, width, label, text=None):
+                cum = cumulative_of(grid)
+                ok = np.isfinite(cum) & (cum > 0)
+                if ok.any():
+                    axes[0].plot(grid[ok], cum[ok], color=color, ls=style, lw=width, label=label)
+                per_bin = (cumulative_of(lo_edges) - cumulative_of(hi_edges)) * area_km2
+                ok = np.isfinite(per_bin) & (per_bin > 0)
+                if ok.any():
+                    centers = np.sqrt(lo_edges * hi_edges)
+                    axes[1].plot(centers[ok], per_bin[ok], color=color, ls=style, lw=width)
+                if text:
+                    for ax, values in ((axes[0], cum), (axes[1], per_bin)):
+                        y0, y1 = ax.get_ylim()
+                        xs = grid if ax is axes[0] else np.sqrt(lo_edges * hi_edges)
+                        inside = np.isfinite(values) & (values > y0 * 1.3) & (values < y1 / 1.3) & (xs > xlim[0] * 1.1) & (xs < xlim[1] / 1.1)
+                        if inside.any():
+                            k = np.flatnonzero(inside)[-1]
+                            ax.annotate(text, (xs[k], values[k]), xytext=(-2, 3), textcoords="offset points", ha="right", va="bottom", fontsize=6, color=color)
+
+            draw_reference(scaling.equilibrium_cumulative, "#ff6b7a", "-.", 1.0, "equilibrium (Trask 1966)")
+            if isochrons != "none":
+                end_time = float(p["endTime"])
+                ages = [a for a in (1.0, 10.0, 100.0, 1000.0, 3000.0) if abs(np.log10(a / end_time)) > 0.15] + [end_time]
+                for age in sorted(ages):
+                    is_run = age == end_time
+                    text = ("{:g} Ma".format(age) if age < 1000 else "{:g} Ga".format(age / 1000)) + (" (run)" if is_run else "")
+                    draw_reference(lambda d, a=age: scaling.isochron_cumulative(isochrons, d, a), "#79a6ff" if is_run else THEME["muted"], "-" if is_run else ":",
+                                   1.3 if is_run else 0.8, "isochrons: " + scaling.ISOCHRON_SYSTEMS[isochrons]["label"] if is_run else None, text)
+            for ax, lim in zip(axes, ylims):
+                ax.set_xlim(xlim); ax.set_ylim(lim)
             axes[0].set_xlabel("crater diameter [m]"); axes[0].set_ylabel("N(> D) per km²"); axes[0].set_title("Cumulative crater distributions", fontsize=10)
             axes[1].set_xlabel("crater diameter [m]"); axes[1].set_ylabel("count per bin ({:.0f} per decade)".format(bins_per_decade(bins))); axes[1].set_title("Differential crater distributions", fontsize=10)
-            legend = axes[0].legend(loc="lower left", **legend_kwargs); legend.get_frame().set_alpha(0.9)
+            legend = axes[0].legend(loc="upper right", **legend_kwargs); legend.get_frame().set_alpha(0.9)
 
         elif name == "rplot":
             # Relative size-frequency distribution (Arvidson et al. 1979): R = D_mean^3 dN/dD / A, in sqrt(2) bins.
@@ -1239,6 +1284,7 @@ async def meta() -> Dict:
         "production_functions": {k: {"label": v["label"], "available": v["available"], "reference": v["reference"]} for k, v in scaling.PRODUCTION_FUNCTIONS.items()},
         "default_presets": {"body": "moon", "production_function": "williams", "basement_auto": True},
         "map_kinds": {k: v[0] for k, v in MAP_KINDS.items()},
+        "isochron_systems": {k: {"label": v["label"], "available": v["available"], "reference": v["reference"], "body": v["body"]} for k, v in scaling.ISOCHRON_SYSTEMS.items()},
         "default_kind": "shaded_relief",
         "map_geometry": map_geometry(),
         "tests": TESTS,
@@ -1410,8 +1456,8 @@ async def get_histograms(run_id: str) -> FileResponse:
 
 
 @app.get("/api/runs/{run_id}/figure/{name}.png")
-async def get_figure(run_id: str, name: str, scale: int = Query(1, ge=1, le=3)) -> FileResponse:
-    return FileResponse(str(await asyncio.to_thread(not_found_if_deleted, render_figure, run_id, name, scale)), media_type="image/png")
+async def get_figure(run_id: str, name: str, scale: int = Query(1, ge=1, le=3), isochrons: str = Query("none", pattern="^[a-z_]{1,32}$")) -> FileResponse:
+    return FileResponse(str(await asyncio.to_thread(not_found_if_deleted, render_figure, run_id, name, scale, isochrons)), media_type="image/png")
 
 
 @app.get("/api/runs/{run_id}/animation/{kind}.gif")

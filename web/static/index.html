@@ -271,7 +271,8 @@
       </div>
 
       <div id="tab-figures" class="tab hide">
-        <div class="panel" style="margin-top:0"><img data-figure="craters" class="zoomable" alt="crater size distributions" title="click to enlarge"><div class="caption">Craters: cumulative N(&gt;D) per km² and counts per log bin of all craters formed and of those still visible at the end (depth changed by less than 50%). The visible craters are also drawn exactly, one point per crater. Click any figure for a high-resolution version.</div></div>
+        <div class="controls" style="margin:0 0 10px"><label>isochrons <select id="isochrons"></select></label></div><div class="caption" id="isochronNote" style="margin:-6px 0 10px"></div>
+        <div class="panel" style="margin-top:0"><img data-figure="craters" class="zoomable" alt="crater size distributions" title="click to enlarge"><div class="caption">Craters: cumulative N(&gt;D) per km² and counts per log bin of all craters formed and of those still visible at the end (depth changed by less than 50%). The visible craters are also drawn exactly, one point per crater. Dash-dotted red: the standard lunar equilibrium N(&gt;D) = 10<sup>&minus;1.1</sup> D<sub>km</sub><sup>&minus;1.83</sup> km<sup>&minus;2</sup> (Trask 1966). Dotted grey: isochrons of the chosen system at 1, 10, 100 Ma, 1 and 3 Ga; blue: the isochron of the run's own age. Click any figure for a high-resolution version.</div></div>
         <div class="panel"><img data-figure="rplot" class="zoomable" alt="R-plot" title="click to enlarge"><div class="caption">R-plot (Arvidson et al. 1979) in √2 bins with Poisson error bars. "Craters formed" is the production population, every crater of the run including the erased ones, so its R is unbounded; the visible craters are the countable population. Dashed: geometric saturation (R = 3.08); dotted: 10% and 1% of it, the empirical saturation band.</div></div>
         <div class="panel"><img data-figure="impactors" class="zoomable" alt="impactor size distribution" title="click to enlarge"><div class="caption">Impactors: cumulative N(&gt;d) per km² and counts per log bin of the impactors drawn from the production function.</div></div>
         <div class="panel"><img data-figure="turnover" class="zoomable" alt="regolith turnover" title="click to enlarge"><div class="caption">Regolith turnover by the method of Gault et al. (1974, Eqs. 12&ndash;15): a point is turned over to depth D<sub>a</sub>/8 when a crater at least D<sub>a</sub> across forms within 0.75&thinsp;D<sub>a</sub>/2 of it, so &lambda; = N(&ge;D<sub>a</sub>)&thinsp;&pi;(0.375&thinsp;D<sub>a</sub>)&sup2;&thinsp;t with N the cumulative crater production of the run. Dotted: the expected number &lambda;; solid and dashed: the number of turnovers reached with 50% and 99% probability (Poisson quantiles, Gault's Table 1), drawn where they reach 1. Ages are Gault's 10<sup>6</sup>&ndash;4.6&times;10<sup>9</sup> yr plus the run, scaled from the run's population under the constant flux; compare Gault's Fig. 9, not Fig. 12, which uses the Model I flux with the early bombardment. Nothing is modelled below one eighth of the smallest crater.</div></div>
@@ -801,11 +802,29 @@
       $("section").src = "/api/runs/" + S.current.id + "/section.png?axis=" + S.axis + "&at=" + S.at + "&depth=" + S.depth + "&step=" + S.step;
     }, 120);
   }
+  function figureUrl(name, scale) {
+    let url = "/api/runs/" + S.current.id + "/figure/" + name + ".png?scale=" + (scale || 1);
+    if (name === "craters") url += "&isochrons=" + encodeURIComponent(S.isochrons || "none");
+    return url;
+  }
+  function renderIsochronChoice() {   // the run's own production function is the default when it has isochrons
+    const sel = $("isochrons"); sel.innerHTML = "";
+    const pf = (S.current.presets || {}).production_function;
+    const systems = S.meta.isochron_systems || {};
+    if (!S.isochronsChosen) S.isochrons = systems[pf] && systems[pf].available ? pf : "neukum";
+    [["none", "none"]].concat(Object.entries(systems).map(([k, v]) => [k, v.label + (v.available ? "" : " (not yet available)")])).forEach(([k, label]) => {
+      const o = document.createElement("option"); o.value = k; o.textContent = label; o.disabled = k !== "none" && !systems[k].available; sel.appendChild(o);
+    });
+    sel.value = S.isochrons in systems || S.isochrons === "none" ? S.isochrons : "neukum";
+    const chosen = systems[S.isochrons];
+    $("isochronNote").textContent = chosen ? chosen.reference : "";
+  }
   function refreshHistograms() {
-    document.querySelectorAll("#tab-figures img[data-figure]").forEach(img => { img.fetchPriority = "high"; img.src = "/api/runs/" + S.current.id + "/figure/" + img.dataset.figure + ".png"; });
+    renderIsochronChoice();
+    document.querySelectorAll("#tab-figures img[data-figure]").forEach(img => { img.fetchPriority = "high"; img.src = figureUrl(img.dataset.figure, 1); });
   }
   function openLightbox(name) {
-    $("lightboxImg").src = "/api/runs/" + S.current.id + "/figure/" + name + ".png?scale=2";
+    $("lightboxImg").src = figureUrl(name, 2);
     $("lightbox").classList.remove("hide");
   }
   function closeLightbox() { $("lightbox").classList.add("hide"); $("lightboxImg").src = ""; }
@@ -877,6 +896,7 @@
     renderTests();
     document.querySelectorAll("#tab-figures img[data-figure]").forEach(img => img.onclick = () => openLightbox(img.dataset.figure));
     $("lightbox").onclick = closeLightbox;
+    $("isochrons").onchange = () => { S.isochrons = $("isochrons").value; S.isochronsChosen = true; refreshHistograms(); };
     document.addEventListener("keydown", e => { if (e.key === "Escape") closeLightbox(); });
     $("editBtn").onclick = () => openComposer(S.current.parameters, S.current.layers, Object.assign({ body: "custom", production_function: "power_law", basement_auto: false }, S.current.presets || {}));
     $("deleteBtn").onclick = deleteCurrent;

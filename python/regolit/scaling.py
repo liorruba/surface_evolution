@@ -103,6 +103,59 @@ def crater_density(key: str, diameter_m) -> np.ndarray:
     raise ValueError("production function {} is not a crater production function".format(key))
 
 
+# ----------------------------------------------------------------------------------------------
+# Isochrons and equilibrium
+# ----------------------------------------------------------------------------------------------
+def chronology_factor(age_ma: float) -> float:
+    """N(1 km) at the given age relative to 1 Ga, Neukum's lunar chronology N1(T) = 5.44e-14 (e^{6.93 T} - 1) + 8.38e-4 T
+    (T in Ga; Neukum et al. 2001). Ivanov's (2001) Mars chronology has the same shape, so the factor holds for both."""
+    def n1(t_ga: float) -> float:
+        return 5.44e-14 * (math.exp(6.93 * t_ga) - 1.0) + 8.38e-4 * t_ga
+    return n1(age_ma / 1000.0) / n1(1.0)
+
+
+ISOCHRON_SYSTEMS: Dict[str, Dict] = {
+    "neukum": {
+        "label": "Neukum et al. (2001), Moon",
+        "body": "moon",
+        "reference": "Neukum, Ivanov & Hartmann (2001): lunar production function (10 m to 300 km, extrapolated below) "
+                     "scaled with the lunar chronology N(1 km) = 5.44e-14 (e^(6.93 T) - 1) + 8.38e-4 T.",
+        "available": True,
+    },
+    "daubar": {
+        "label": "Daubar et al. (2013), Mars, present rate",
+        "body": "mars",
+        "reference": "Daubar et al. (2013): present-day primary crater production on Mars, 1.65e-6 craters km^-2 yr^-1 "
+                     "at D >= 3.9 m with cumulative slope 1.45, accumulated linearly in time.",
+        "available": True,
+    },
+    "hartmann": {
+        "label": "Hartmann (2005), Mars",
+        "body": "mars",
+        "reference": "Hartmann (2005), Icarus 174, 294: the 2004 iteration of the Martian isochrons. Not yet available: "
+                     "the piecewise incremental coefficients have to be entered from the paper.",
+        "available": False,
+    },
+}
+
+
+def isochron_cumulative(key: str, diameter_m, age_ma: float) -> np.ndarray:
+    """Cumulative N(>D) per km^2 of the isochron of the given age for one of the ISOCHRON_SYSTEMS."""
+    D = np.asarray(diameter_m, dtype=float)
+    if key == "neukum":
+        per_m2_per_ma = crater_density("neukum", D)          # 1 Ga at the present rate, divided by 1000 Ma
+        return per_m2_per_ma * 1e6 * 1000.0 * chronology_factor(age_ma)
+    if key == "daubar":
+        return crater_density("daubar", D) * 1e6 * age_ma
+    raise ValueError("isochron system {} is not available".format(key))
+
+
+def equilibrium_cumulative(diameter_m) -> np.ndarray:
+    """The standard lunar equilibrium (Trask 1966; Neukum 1983): N(>D) = 10^-1.1 D_km^-1.83 per km^2."""
+    D_km = np.asarray(diameter_m, dtype=float) / 1000.0
+    return 10.0 ** -1.1 * D_km ** -1.83
+
+
 def body_flux_ratio(body: Optional[str]) -> float:
     ratio = BODIES.get(body or "custom", {}).get("flux_ratio_to_earth")
     return float(ratio) if ratio else 1.0

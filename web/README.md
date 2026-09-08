@@ -45,7 +45,11 @@ The run setup offers, besides the raw model parameters:
 - A live **estimate** line: expected number of impacts, largest impactor and crater, smallest crater,
   and the basement suggestion, recomputed as you edit (`POST /api/estimate`).
 - **Figures**: four clickable figures (a click opens a high-resolution version): the crater size
-  distributions (cumulative and per bin, formed and visible, the visible ones also exactly), an R-plot
+  distributions (cumulative and per bin, formed and visible, the visible ones also exactly, with the
+  standard lunar equilibrium N(>D) = 10^-1.1 D_km^-1.83 km^-2 of Trask 1966 and, chosen from a combo
+  box, the isochrons of Neukum et al. 2001 (Moon, with the lunar chronology) or Daubar et al. 2013
+  (Mars, present rate) at 1, 10, 100 Ma, 1 and 3 Ga plus the run's own age; Hartmann 2005 is listed
+  but waits for its coefficients), an R-plot
   in √2 bins, the impactor size distribution, and the regolith turnover diagram computed with the
   method of Gault et al. (1974, Eqs. 12–15): turnover depth D_a/8, λ = N(≥D_a) π (0.375 D_a)² t
   from the run's cumulative crater production, with the expected number λ and the 50% and 99%
