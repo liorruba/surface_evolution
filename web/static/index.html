@@ -277,8 +277,10 @@
       </div>
 
       <div id="tab-figures" class="tab hide">
-        <div class="panel" style="margin-top:0"><img id="figSizes" class="zoomable" alt="size distributions" title="click to enlarge"><div class="caption">Size distributions: cumulative N(&gt;D) per km² of the impactors, of all craters formed and of those still visible at the end (depth changed by less than 50%), and the counts per log bin. Click for a high-resolution version.</div></div>
-        <div class="panel"><img id="figDepths" class="zoomable" alt="depth distributions" title="click to enlarge"><div class="caption">Depths of the visible craters: current depth against the depth at formation, and their depth/diameter ratios (fresh craters sit at the input ratio; degraded ones move left). Click for a high-resolution version.</div></div>
+        <div class="panel" style="margin-top:0"><img data-figure="craters" class="zoomable" alt="crater size distributions" title="click to enlarge"><div class="caption">Craters: cumulative N(&gt;D) per km² and counts per log bin of all craters formed and of those still visible at the end (depth changed by less than 50%). The visible craters are also drawn exactly, one point per crater. Click any figure for a high-resolution version.</div></div>
+        <div class="panel"><img data-figure="rplot" class="zoomable" alt="R-plot" title="click to enlarge"><div class="caption">R-plot (Arvidson et al. 1979) of the craters formed and visible in √2 bins, with Poisson error bars; the dotted lines mark 10% and 1% of geometric saturation.</div></div>
+        <div class="panel"><img data-figure="impactors" class="zoomable" alt="impactor size distribution" title="click to enlarge"><div class="caption">Impactors: cumulative N(&gt;d) per km² and counts per log bin of the impactors drawn from the production function.</div></div>
+        <div class="panel"><img data-figure="turnover" class="zoomable" alt="regolith turnover" title="click to enlarge"><div class="caption">Regolith turnover after Gault et al. (1974, Fig. 12): the number of times a point of the surface was excavated to at least the given depth by the primaries, at several times of the run (solid: expected; dashed: reached with 99% probability). Cavities are paraboloids of depth d/D times the diameter.</div></div>
       </div>
       <div id="lightbox" class="lightbox hide" title="click to close"><img id="lightboxImg" alt="enlarged figure"></div>
 
@@ -775,8 +777,7 @@
     }, 120);
   }
   function refreshHistograms() {
-    $("figSizes").src = "/api/runs/" + S.current.id + "/figure/sizes.png";
-    $("figDepths").src = "/api/runs/" + S.current.id + "/figure/depths.png";
+    document.querySelectorAll("#tab-figures img[data-figure]").forEach(img => { img.src = "/api/runs/" + S.current.id + "/figure/" + img.dataset.figure + ".png"; });
   }
   function openLightbox(name) {
     $("lightboxImg").src = "/api/runs/" + S.current.id + "/figure/" + name + ".png?scale=2";
@@ -847,8 +848,7 @@
     document.querySelectorAll(".tabs button[data-tab]").forEach(b => b.onclick = () => selectTab(b.dataset.tab));
     document.querySelectorAll("#ctabs button").forEach(b => b.onclick = () => selectComposerTab(b.dataset.ctab));
     renderTests();
-    $("figSizes").onclick = () => openLightbox("sizes");
-    $("figDepths").onclick = () => openLightbox("depths");
+    document.querySelectorAll("#tab-figures img[data-figure]").forEach(img => img.onclick = () => openLightbox(img.dataset.figure));
     $("lightbox").onclick = closeLightbox;
     document.addEventListener("keydown", e => { if (e.key === "Escape") closeLightbox(); });
     $("editBtn").onclick = () => openComposer(S.current.parameters, S.current.layers, Object.assign({ body: "custom", production_function: "power_law", basement_auto: false }, S.current.presets || {}));

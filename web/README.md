@@ -44,9 +44,11 @@ The run setup offers, besides the raw model parameters:
   (secondaries are ejecta fragments; see the main README).
 - A live **estimate** line: expected number of impacts, largest impactor and crater, smallest crater,
   and the basement suggestion, recomputed as you edit (`POST /api/estimate`).
-- **Figures**: separate size and depth distributions drawn as lines from the model's log-binned
-  histograms (`histogramBinsPerDecade`, default 20 per decade) and from the exact list of visible
-  craters; click a figure for a high-resolution version.
+- **Figures**: four clickable figures (a click opens a high-resolution version): the crater size
+  distributions (cumulative and per bin, formed and visible, the visible ones also exactly), an R-plot
+  in √2 bins, the impactor size distribution, and the regolith turnover diagram after Gault et al.
+  (1974, Fig. 12) with expected and 99%-probability curves at several times. The histograms behind
+  them use `histogramBinsPerDecade` log bins per decade (default 40, editable in the Time group).
 - An **ice and soot** panel, off by default: ice deposition, sublimation and the retention of ice and
   soot in ejecta. Off, ice and soot in the initial layers are passive tracers.
 - A **seismic shaking** panel (Richardson 2005, 2009): efficiency, diffusion constant, acceleration

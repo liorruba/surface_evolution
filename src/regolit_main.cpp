@@ -180,7 +180,7 @@ int main() {
         isEmplaceDistantSecondaries = setVariableOptional(varList, "isEmplaceDistantSecondaries", 0.0) != 0;
         secondaryMaximumRange = setVariableOptional(varList, "secondaryMaximumRange", 100000.0);
         testCraterDiameter = setVariableOptional(varList, "testCraterDiameter", 0.0);
-        histogramBinsPerDecade = (int) setVariableOptional(varList, "histogramBinsPerDecade", 20.0);
+        histogramBinsPerDecade = (int) setVariableOptional(varList, "histogramBinsPerDecade", 40.0);
         // Ice and soot processes. Off: no deposition or sublimation, and the ejecta keeps the composition
         // of the excavated material (ice and soot are passive tracers of the initial layers).
         isVolatiles = setVariableOptional(varList, "isVolatiles", 0.0) != 0;

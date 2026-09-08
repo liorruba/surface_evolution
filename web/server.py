@@ -120,6 +120,8 @@ PARAMETERS: List[Dict] = [
          description="Simulated time."),
     dict(group="Time", name="printTimeStep", label="Output interval", unit="Ma", min=0.01, max=4500, kind="number",
          description="Time between saved steps; up to 500 steps, bounded by the total output size."),
+    dict(group="Time", name="histogramBinsPerDecade", label="Histogram bins per decade", unit="", min=4, max=200, kind="int",
+         description="Log bins per decade of the size and depth histograms behind the figures."),
     dict(group="Time", name="randomSeed", label="Random seed", unit="", min=0, max=2**31 - 1, kind="int",
          description="Seed of the impactor sequence."),
     dict(group="Impactors", name="minimumImpactorDiameter", label="Minimum impactor diameter", unit="m", min=0.02, max=50, kind="number",
@@ -846,7 +848,8 @@ def render_section(run_id: str, axis: str, at: float, depth: float, step: int) -
     return buffer.getvalue()
 
 
-FIGURE_NAMES = ("sizes", "depths")
+FIGURE_NAMES = ("impactors", "craters", "rplot", "turnover")
+FIGURE_ALIASES = {"sizes": "craters", "depths": "turnover"}
 
 
 def cumulative_from_histogram(bins: np.ndarray, counts: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -859,8 +862,62 @@ def cumulative_from_histogram(bins: np.ndarray, counts: np.ndarray) -> Tuple[np.
     return bins[lo:hi + 1], np.append(cumulative[lo:hi], 0)[: hi + 1 - lo]
 
 
+def bins_per_decade(bins: np.ndarray) -> float:
+    return 1.0 / np.log10(bins[1] / bins[0]) if len(bins) > 1 else 20.0
+
+
+def rebin(bins: np.ndarray, counts: np.ndarray, factor: int) -> Tuple[np.ndarray, np.ndarray]:
+    """Aggregate `factor` consecutive bins (counts[k] belongs to [bins[k], bins[k+1]))."""
+    factor = max(1, factor)
+    n = (len(bins) - 1) // factor
+    edges = bins[: n * factor + 1 : factor]
+    merged = counts[: n * factor].reshape(n, factor).sum(axis=1)
+    return edges, merged
+
+
+def poisson_lower_quantile(mean: np.ndarray, probability: float = 0.99) -> np.ndarray:
+    """Smallest k with P(N >= k) >= probability for a Poisson variable of the given mean (Gault et al. 1974, 99% curves)."""
+    from math import exp, lgamma, log
+    out = np.zeros_like(mean, dtype=float)
+    for index, mu in enumerate(mean):
+        if mu <= 0:
+            continue
+        if mu > 200:   # normal approximation
+            out[index] = max(0.0, mu - 2.326 * np.sqrt(mu))
+            continue
+        cdf, k = 0.0, 0
+        target = 1 - probability
+        while True:
+            cdf += exp(k * log(mu) - mu - lgamma(k + 1))
+            if cdf >= target:
+                break
+            k += 1
+        out[index] = k
+    return out
+
+
+def plot_size_series(axes, series, area_km2: float, exact: Optional[np.ndarray] = None, exact_label: str = "") -> None:
+    """Cumulative N(>D) per km² on axes[0] and counts per bin on axes[1] for (label, color, style, width, bins, counts) series."""
+    lo, hi = np.inf, 0.0
+    for label, color, style, width, bins, counts in series:
+        edges, cumulative = cumulative_from_histogram(bins, counts)
+        if not len(edges):
+            continue
+        axes[0].plot(edges[:-1], cumulative[:-1] / area_km2, color=color, ls=style, lw=width, label=label)
+        centers = np.sqrt(bins[:-1] * bins[1:])
+        mask = counts[:-1] > 0
+        axes[1].plot(centers[mask], counts[:-1][mask], color=color, ls=style, lw=width)
+        lo, hi = min(lo, edges[0]), max(hi, edges[-1])
+    if exact is not None and len(exact):
+        axes[0].plot(exact, np.arange(len(exact), 0, -1) / area_km2, color="#7ed0a8", ls=":", lw=1.0, label=exact_label)
+    if np.isfinite(lo) and hi > 0:
+        for ax in axes:
+            ax.set_xlim(lo * 0.8, hi * 1.5)
+
+
 def render_figure(run_id: str, name: str, scale: int = 1) -> Path:
-    """The size or depth distributions of a run as lines (scale 2 = the high-resolution version)."""
+    """One of the run's distribution figures as lines (scale 2 = the high-resolution version)."""
+    name = FIGURE_ALIASES.get(name, name)
     if name not in FIGURE_NAMES:
         raise HTTPException(404, "unknown figure")
     target = run_dir(run_id) / "cache" / "{}_{}x.png".format(name, scale)
@@ -868,83 +925,112 @@ def render_figure(run_id: str, name: str, scale: int = 1) -> Path:
         return target
     out = output_of(run_id)
     summary = load_summary(run_id)
-    area_km2 = summary["parameters"]["regionWidth"] ** 2 / 1e6
-    craters = out.craters()
+    p = summary["parameters"]
+    area_km2 = p["regionWidth"] ** 2 / 1e6
     with PLOT_LOCK:
         fig = themed_figure(WIDE_FIG_SIZE, dpi=MAP_DPI * scale)
-        axes = [fig.add_axes((0.075, 0.19, 0.395, 0.69)), fig.add_axes((0.585, 0.19, 0.395, 0.69))]
+        if name == "turnover":
+            axes = [fig.add_axes((0.09, 0.19, 0.86, 0.69))]
+        else:
+            axes = [fig.add_axes((0.075, 0.19, 0.395, 0.69)), fig.add_axes((0.585, 0.19, 0.395, 0.69))]
         for ax in axes:
             style_axes(ax)
             ax.set_xscale("log")
             ax.set_yscale("log")
             ax.grid(alpha=0.15, color=THEME["muted"], which="both")
-        if name == "sizes":
-            series = []   # (label, color, style, width, edges, per-bin counts)
-            for key, color, style, width, label in [("impactors", "#79a6ff", "-", 1.3, "impactors"), ("craters", THEME["accent"], "-", 2.0, "craters formed")]:
-                bins, counts = out.histogram(key)
-                series.append((label, color, style, width, bins, counts.astype(float)))
-            # The visible craters are listed one by one, so their distribution needs no bins:
-            visible = np.sort(np.asarray(craters["diameter"], dtype=float))
-            bins_all = series[1][4]
-            visible_counts, _ = np.histogram(visible, bins=bins_all)
-            series.append(("craters visible at the end", "#7ed0a8", "--", 1.4, bins_all, np.append(visible_counts, 0).astype(float)))
-            lo, hi = np.inf, 0.0
-            for label, color, style, width, bins, counts in series:
-                edges, cumulative = cumulative_from_histogram(bins, counts)
-                if len(edges):
-                    axes[0].plot(edges[:-1], cumulative[:-1] / area_km2, color=color, ls=style, lw=width, label=label)
-                    centers = np.sqrt(bins[:-1] * bins[1:])
-                    mask = counts[:-1] > 0
-                    axes[1].plot(centers[mask], counts[:-1][mask], color=color, ls=style, lw=width, marker="." if scale > 1 else None, ms=3)
-                    lo, hi = min(lo, edges[0]), max(hi, edges[-1])
-            if len(visible):
-                axes[0].plot(visible, np.arange(len(visible), 0, -1) / area_km2, color="#7ed0a8", ls=":", lw=1.0, label="visible, exact (one point per crater)")
-            if np.isfinite(lo) and hi > 0:
-                for ax in axes:
-                    ax.set_xlim(lo * 0.8, hi * 1.5)
-            axes[0].set_xlabel("diameter [m]")
-            axes[0].set_ylabel("N(> D) per km²")
-            axes[0].set_title("Cumulative size distributions", fontsize=10)
-            axes[1].set_xlabel("diameter [m]")
-            axes[1].set_ylabel("count per bin ({} bins per decade)".format(int(round(1 / np.log10(bins_all[1] / bins_all[0]))) if len(bins_all) > 1 else "?"))
-            axes[1].set_title("Differential size distributions", fontsize=10)
-            legend = axes[0].legend(fontsize=7.5, facecolor=THEME["figure"], edgecolor=THEME["grid"], labelcolor=THEME["ink"], loc="lower left")
-            legend.get_frame().set_alpha(0.9)
-        else:
-            depth = np.asarray(craters["depth"], dtype=float)
-            initial = np.asarray(craters["initial_depth"], dtype=float)
-            diameter = np.asarray(craters["diameter"], dtype=float)
-            if len(depth):
-                positive = depth[depth > 0]
-                edges = np.logspace(np.log10(max(positive.min(), 1e-3)), np.log10(positive.max() * 1.01), 20 * max(1, int(np.ceil(np.log10(positive.max() / max(positive.min(), 1e-3))))) + 1) if len(positive) else np.array([1e-3, 1])
-                counts, _ = np.histogram(positive, bins=edges)
-                centers = np.sqrt(edges[:-1] * edges[1:])
-                mask = counts > 0
-                axes[0].plot(centers[mask], counts[mask], color="#f08a7a", lw=1.6, label="current depth")
-                counts0, _ = np.histogram(initial[initial > 0], bins=edges)
-                mask0 = counts0 > 0
-                axes[0].plot(centers[mask0], counts0[mask0], color=THEME["accent"], lw=1.2, ls="--", label="depth at formation")
-                ratio = depth / np.maximum(diameter, 1e-9)
-                axes[1].set_xscale("linear")
-                axes[1].set_yscale("linear")
-                redges = np.linspace(0, max(0.25, float(np.percentile(ratio, 99.5)) * 1.05), 60)
-                rcounts, _ = np.histogram(ratio, bins=redges)
-                axes[1].plot(0.5 * (redges[:-1] + redges[1:]), rcounts, color="#f08a7a", lw=1.6)
-                axes[1].set_xlabel("depth / diameter of the visible craters")
-                axes[1].set_ylabel("count per bin")
-                axes[1].set_title("Degradation state", fontsize=10)
-                legend = axes[0].legend(fontsize=7.5, facecolor=THEME["figure"], edgecolor=THEME["grid"], labelcolor=THEME["ink"])
-                legend.get_frame().set_alpha(0.9)
-            axes[0].set_xlabel("depth [m]")
-            axes[0].set_ylabel("count per bin (20 bins per decade)")
-            axes[0].set_title("Depths of the visible craters", fontsize=10)
+        legend_kwargs = dict(fontsize=7.5, facecolor=THEME["figure"], edgecolor=THEME["grid"], labelcolor=THEME["ink"])
+
+        if name == "impactors":
+            bins, counts = out.histogram("impactors")
+            plot_size_series(axes, [("impactors", "#79a6ff", "-", 1.6, bins, counts.astype(float))], area_km2)
+            axes[0].set_xlabel("impactor diameter [m]"); axes[0].set_ylabel("N(> d) per km²"); axes[0].set_title("Cumulative impactor distribution", fontsize=10)
+            axes[1].set_xlabel("impactor diameter [m]"); axes[1].set_ylabel("count per bin ({:.0f} per decade)".format(bins_per_decade(bins))); axes[1].set_title("Differential impactor distribution", fontsize=10)
+
+        elif name == "craters":
+            bins, counts = out.histogram("craters")
+            visible = np.sort(np.asarray(out.craters()["diameter"], dtype=float))
+            visible_counts, _ = np.histogram(visible, bins=bins)
+            series = [("craters formed", THEME["accent"], "-", 2.0, bins, counts.astype(float)),
+                      ("craters visible at the end", "#7ed0a8", "--", 1.4, bins, np.append(visible_counts, 0).astype(float))]
+            plot_size_series(axes, series, area_km2, visible, "visible, exact (one point per crater)")
+            axes[0].set_xlabel("crater diameter [m]"); axes[0].set_ylabel("N(> D) per km²"); axes[0].set_title("Cumulative crater distributions", fontsize=10)
+            axes[1].set_xlabel("crater diameter [m]"); axes[1].set_ylabel("count per bin ({:.0f} per decade)".format(bins_per_decade(bins))); axes[1].set_title("Differential crater distributions", fontsize=10)
+            legend = axes[0].legend(loc="lower left", **legend_kwargs); legend.get_frame().set_alpha(0.9)
+
+        elif name == "rplot":
+            # Relative size-frequency distribution (Arvidson et al. 1979): R = D_mean^3 dN/dD / A, in sqrt(2) bins.
+            bins, counts = out.histogram("craters")
+            factor = max(1, int(round(bins_per_decade(bins) * np.log10(np.sqrt(2)))))
+            visible = np.asarray(out.craters()["diameter"], dtype=float)
+            visible_counts, _ = np.histogram(visible, bins=bins)
+            area_m2 = area_km2 * 1e6
+            for label, color, style, width, c in [("craters formed", THEME["accent"], "-", 2.0, counts.astype(float)), ("craters visible at the end", "#7ed0a8", "--", 1.4, np.append(visible_counts, 0).astype(float))]:
+                edges, merged = rebin(bins, c, factor)
+                mean_d = np.sqrt(edges[:-1] * edges[1:])
+                r = mean_d ** 3 * merged / (area_m2 * (edges[1:] - edges[:-1]))
+                mask = merged > 0
+                axes[0].plot(mean_d[mask], r[mask], color=color, ls=style, lw=width, marker="o", ms=3, label=label)
+                if mask.any():
+                    error = r[mask] / np.sqrt(merged[mask])
+                    axes[0].errorbar(mean_d[mask], r[mask], yerr=error, fmt="none", ecolor=color, elinewidth=0.6, alpha=0.6, capsize=0)
+                # the same craters as a differential per sqrt(2) bin, for reference
+                axes[1].plot(mean_d[mask], merged[mask], color=color, ls=style, lw=width, marker="o", ms=3)
+            from matplotlib.ticker import NullFormatter
+            axes[0].yaxis.set_minor_formatter(NullFormatter())
+            low, high = axes[0].get_ylim()
+            axes[0].set_ylim(10 ** np.floor(np.log10(max(low, 1e-6))), 10 ** np.ceil(np.log10(max(high, 0.5))))
+            axes[0].axhline(0.3, color=THEME["muted"], lw=0.8, ls=":"); axes[0].axhline(0.03, color=THEME["muted"], lw=0.8, ls=":")
+            axes[0].text(axes[0].get_xlim()[0] * 1.3 if axes[0].get_xlim()[0] > 0 else 1, 0.32, "geometric saturation 10% / 1%", fontsize=6.5, color=THEME["muted"])
+            axes[0].set_xlabel("crater diameter [m]"); axes[0].set_ylabel("R"); axes[0].set_title("R-plot (√2 bins)", fontsize=10)
+            axes[1].set_xlabel("crater diameter [m]"); axes[1].set_ylabel("count per √2 bin"); axes[1].set_title("Counts per √2 bin", fontsize=10)
+            legend = axes[0].legend(loc="lower left", **legend_kwargs); legend.get_frame().set_alpha(0.9)
+
+        else:   # turnover: Gault et al. (1974), Fig. 12
+            # Expected number of times a point was excavated to at least depth d by the primaries formed so
+            # far: n(d) = (1/A) sum over craters of the cavity area deeper than d, pi R^2 (1 - d/h) for a
+            # paraboloid of depth h = depthToDiameter D. The flux is constant, so the population at time t
+            # is the final one scaled by t / T; the 99% curves are the Poisson quantiles of that mean.
+            bins, counts = out.histogram("craters")
+            end_time = float(p["endTime"])
+            depth_ratio = float(p.get("depthToDiameter", 0.2))
+            centers = np.sqrt(bins[:-1] * bins[1:])
+            radii = centers / 2
+            depths_c = depth_ratio * centers
+            area_m2 = area_km2 * 1e6
+            weights = counts[:-1].astype(float)
+            dmin = max(depth_ratio * centers[weights > 0].min() * 0.05, 1e-4) if weights.any() else 1e-3
+            dmax = depth_ratio * centers[weights > 0].max() if weights.any() else 1.0
+            d = np.logspace(np.log10(dmin), np.log10(dmax), 200)
+            n_final = np.array([np.sum(weights * np.pi * radii ** 2 * np.clip(1 - dd / depths_c, 0, None)) for dd in d]) / area_m2
+            times = [t for t in [end_time * f for f in (1e-4, 1e-3, 1e-2, 0.1, 1.0)] if t >= 1e-3]
+            colors = ["#79a6ff", "#7ed0a8", "#e5c76b", "#f08a7a", THEME["accent"]][-len(times):]
+            plotted_min, plotted_max = np.inf, 0.0
+            for t, color in zip(times, colors):
+                mean = n_final * t / end_time
+                mask = mean > 1e-4
+                if not mask.any():
+                    continue
+                axes[0].plot(d[mask], mean[mask], color=color, lw=1.6, label="{:g} Ma".format(t))
+                plotted_min, plotted_max = min(plotted_min, mean[mask].min()), max(plotted_max, mean[mask].max())
+                q99 = poisson_lower_quantile(mean)
+                mask99 = q99 >= 1
+                if mask99.any():
+                    axes[0].plot(d[mask99], q99[mask99], color=color, lw=1.1, ls="--")
+            axes[0].plot([], [], color=THEME["ink"], lw=1.6, label="expected (≈50%)"); axes[0].plot([], [], color=THEME["ink"], lw=1.1, ls="--", label="with 99% probability")
+            if np.isfinite(plotted_min) and plotted_max > 0:
+                axes[0].set_ylim(10 ** np.floor(np.log10(max(plotted_min, 1e-4))), 10 ** np.ceil(np.log10(plotted_max * 1.5)))
+            axes[0].axhline(1, color=THEME["muted"], lw=0.8, ls=":")
+            axes[0].text(d[0] * 1.1, 1.15, "turned over once", fontsize=6.5, color=THEME["muted"])
+            axes[0].set_xlabel("depth of turnover [m]"); axes[0].set_ylabel("number of times turned over")
+            axes[0].set_title("Regolith turnover by the primaries (after Gault et al. 1974, Fig. 12)", fontsize=10)
+            legend = axes[0].legend(ncol=2, **legend_kwargs); legend.get_frame().set_alpha(0.9)
         atomic_savefig(fig, target)
         plt.close(fig)
     return target
 
 
 def render_histograms(run_id: str) -> Path:   # kept for older links
-    return render_figure(run_id, "sizes", 1)
+    return render_figure(run_id, "craters", 1)
 
 
 def render_animation(run_id: str, kind: str) -> Path:
