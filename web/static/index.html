@@ -342,7 +342,7 @@
       container.appendChild(box);
     }
     $("body").onchange = () => { S.presets.body = $("body").value; applyBody(); scheduleEstimate(); };
-    $("pf").onchange = () => { S.presets.production_function = $("pf").value; applyProductionFunction(); scheduleEstimate(); };
+    $("pf").onchange = () => { S.presets.production_function = $("pf").value; applyProductionFunction(); setMultiplierForFunction(); scheduleEstimate(); };
     $("basementAuto").onchange = () => { S.presets.basement_auto = $("basementAuto").checked; applyBasementMode(); scheduleEstimate(); };
     $("layers").addEventListener("input", scheduleEstimate);
   }
@@ -379,6 +379,10 @@
     S.meta.parameters.filter(p => p.auto === "production_function").forEach(p => { $("p_" + p.name).disabled = !manual; });
     const pf = S.meta.production_functions[S.presets.production_function];
     $("pfRef").textContent = pf ? pf.reference : "";
+  }
+  // A published production function is used as published (multiplier 1); the manual power law keeps the config's value.
+  function setMultiplierForFunction() {
+    $("p_earthFluxRatioCoefficient").value = S.presets.production_function === "power_law" ? fmt(S.meta.defaults.earthFluxRatioCoefficient) : "1";
   }
   function applyBasementMode() { $("p_initialThickness").disabled = !!S.presets.basement_auto; }
   function applySecondaries() {
@@ -466,7 +470,7 @@
   function openComposer(values, layers, presets) {
     S.presets = Object.assign({}, S.meta.default_presets, presets || {});
     setParameters(values || {}); setLayers(layers || S.meta.layers); setMsg("");
-    applyPresets(); scheduleEstimate();
+    applyPresets(); if (!values || !Object.keys(values).length) setMultiplierForFunction(); scheduleEstimate();
     document.querySelectorAll(".card").forEach(c => c.classList.remove("on"));
     show("composer"); window.scrollTo(0, 0);
   }
@@ -635,7 +639,7 @@
     $("newBtn").onclick = () => openComposer({}, S.meta.layers);
     $("emptyNew").onclick = () => openComposer({}, S.meta.layers);
     $("runBtn").onclick = submitRun;
-    $("resetBtn").onclick = () => { S.presets = Object.assign({}, S.meta.default_presets); setParameters({}); setLayers(S.meta.layers); applyPresets(); scheduleEstimate(); setMsg(""); };
+    $("resetBtn").onclick = () => { S.presets = Object.assign({}, S.meta.default_presets); setParameters({}); setLayers(S.meta.layers); applyPresets(); setMultiplierForFunction(); scheduleEstimate(); setMsg(""); };
     $("saveBtn").onclick = saveSettings;
     $("loadBtn").onclick = () => $("loadFile").click();
     $("loadFile").onchange = () => { if ($("loadFile").files[0]) loadSettingsFile($("loadFile").files[0]); $("loadFile").value = ""; };
