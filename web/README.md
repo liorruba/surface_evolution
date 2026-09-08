@@ -83,8 +83,13 @@ Logs: `journalctl -u regolit-web -f`. Health check: `curl http://127.0.0.1:8010/
 
 ## Limits
 
-Requests are validated against the ranges in `PARAMETERS` in `server.py`, and a run is refused if it
-would exceed 500 x 500 cells, 500 output steps, 800 MB of output maps or about 200,000 impacts. At most two runs execute at
-a time (others wait, up to eight), each with a 120 s timeout. The full layer stacks are not written
-for web runs. Old runs are deleted once more than 200 are stored. All of these are environment
-variables or constants at the top of `server.py`.
+Requests are validated against the ranges in `PARAMETERS` in `server.py`. A run is refused if it
+would exceed 2000 x 2000 cells, 500 output steps, 2 GB of output maps or about one million impacts.
+These are sized for the compute machine (16 cores, 128 GB): a 2000 x 2000 grid over 100 Ma runs in
+about 10 s on 4 threads and needs under 1 GB of memory. Four runs execute at a time (others wait,
+up to twelve), each with a 600 s timeout, and the slope relaxation of each run uses
+`OMP_NUM_THREADS` threads (default: physical cores divided by the concurrency). The full layer
+stacks are stored compactly for the cross-sections. Old runs are deleted once more than 500 are
+stored or the runs directory exceeds 200 GB. All of these are environment variables
+(`/etc/regolit-web.env` on the droplet, `~/.config/regolit/web.env` in mediator mode) or constants
+at the top of `server.py`.

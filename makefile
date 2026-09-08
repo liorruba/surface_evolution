@@ -4,7 +4,7 @@
 BUILD_TYPE ?= release
 
 CXX      := g++
-WARNINGS := -pedantic-errors -Wall -Wextra -Werror -std=c++17
+WARNINGS := -pedantic-errors -Wall -Wextra -Werror -std=c++17 -fopenmp
 BUILD    := ./build
 APP_DIR  := $(BUILD)/apps
 INCLUDE  := -Iinclude/

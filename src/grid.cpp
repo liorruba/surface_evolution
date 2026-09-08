@@ -6,7 +6,6 @@
 #include <fstream>
 #include <string>
 #include <algorithm>
-#include <initializer_list>
 #include "../include/regolit_main.hpp"
 #include "../include/utility.hpp"
 #include "../include/log.hpp"
@@ -431,42 +430,62 @@ std::vector<double> Grid::surfaceElevationMap() const {
 // cell-to-cell slope exceeds it. Only interfaces steeper than the threshold transport material, so
 // terrain below the angle of repose is left untouched. The transport is written in flux form (it
 // conserves volume) on a periodic domain, consistent with the ghost craters, and the step size is
-// within the explicit stability limit of the five-point stencil.
+// within the explicit stability limit of the five-point stencil. Each iteration is two
+// embarrassingly parallel passes (OpenMP): the flux every cell sends to its right and lower
+// neighbors, then the update of every cell from its own outgoing and its neighbors' incoming fluxes.
 void Grid::relaxSlopes(std::vector<double> &z, double maxSlope) const {
-	const size_t n = gridSize;
+	const long n = gridSize;
 	const double maxRise = maxSlope * resolution;
 	const double relaxation = 0.25;
 	const int maxIterations = 100000;
-	std::vector<double> dz(z.size());
+	std::vector<double> fluxRight(z.size());   // flux from a cell to its right neighbor (negative: from the neighbor)
+	std::vector<double> fluxDown(z.size());    // flux from a cell to its lower neighbor
 
 	for (int iteration = 0; iteration < maxIterations; ++iteration) {
-		std::fill(dz.begin(), dz.end(), 0.0);
 		bool anySteep = false;
 
-		for (size_t j = 0; j < n; ++j) {
-			for (size_t i = 0; i < n; ++i) {
-				const size_t k = j * n + i;
-				const size_t kRight = j * n + (i + 1) % n;
-				const size_t kDown = ((j + 1) % n) * n + i;
+		#pragma omp parallel for schedule(static) reduction(||:anySteep)
+		for (long j = 0; j < n; ++j) {
+			const long row = j * n;
+			const long rowDown = ((j + 1) % n) * n;
+			for (long i = 0; i < n; ++i) {
+				const long k = row + i;
+				const long kRight = row + (i + 1) % n;
+				const long kDown = rowDown + i;
+				double flux = 0.0;
 
-				for (size_t kn : {kRight, kDown}) {
-					const double diff = z[k] - z[kn];
-					const double excess = std::fabs(diff) - maxRise;
-					if (excess > kElevationTolerance) {
-						anySteep = true;
-						const double flux = relaxation * excess * (diff > 0 ? 1.0 : -1.0);   // from k to kn
-						dz[k] -= flux;
-						dz[kn] += flux;
-					}
+				double diff = z[k] - z[kRight];
+				double excess = std::fabs(diff) - maxRise;
+				if (excess > kElevationTolerance) {
+					flux = relaxation * excess * (diff > 0 ? 1.0 : -1.0);
+					anySteep = true;
 				}
+				fluxRight[k] = flux;
+
+				flux = 0.0;
+				diff = z[k] - z[kDown];
+				excess = std::fabs(diff) - maxRise;
+				if (excess > kElevationTolerance) {
+					flux = relaxation * excess * (diff > 0 ? 1.0 : -1.0);
+					anySteep = true;
+				}
+				fluxDown[k] = flux;
 			}
 		}
 
 		if (!anySteep) {
 			return;
 		}
-		for (size_t k = 0; k < z.size(); ++k) {
-			z[k] += dz[k];
+
+		#pragma omp parallel for schedule(static)
+		for (long j = 0; j < n; ++j) {
+			const long row = j * n;
+			const long rowUp = ((j + n - 1) % n) * n;
+			for (long i = 0; i < n; ++i) {
+				const long k = row + i;
+				const long kLeft = row + (i + n - 1) % n;
+				z[k] += fluxRight[kLeft] + fluxDown[rowUp + i] - fluxRight[k] - fluxDown[k];
+			}
 		}
 	}
 

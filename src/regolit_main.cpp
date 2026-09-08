@@ -13,6 +13,9 @@
 #include <filesystem>
 #include <algorithm>
 #include <vector>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 #include "../include/regolit_main.hpp"
 #include "../include/log.hpp"
 #include "../include/utility.hpp"
@@ -209,6 +212,10 @@ int main() {
 
         // Initialize the random number generator seed:
         srand48(randomSeed);
+
+#ifdef _OPENMP
+        addLogEntry("Slope relaxation runs on " + std::to_string(omp_get_max_threads()) + " threads (set OMP_NUM_THREADS to change).", true);
+#endif
 
         int printIndex = 1; // The index appended to the output file names (elevation_01.out, ...).
 

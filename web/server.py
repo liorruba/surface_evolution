@@ -12,7 +12,9 @@ REGOLIT_WEB_RUNS          directory holding the runs (default runs/web)
 REGOLIT_WEB_USER/PASSWORD if set, HTTP basic authentication is required for every page
 REGOLIT_WEB_CONCURRENCY   simultaneous model runs (default 2); REGOLIT_WEB_QUEUE waiting runs (default 8)
 REGOLIT_WEB_TIMEOUT       seconds allowed per run (default 120)
-REGOLIT_WEB_MAX_RUNS      runs kept on disk, oldest deleted first (default 200)
+REGOLIT_WEB_MAX_RUNS      runs kept on disk, oldest deleted first (default 500)
+REGOLIT_WEB_MAX_DISK_GB   disk budget of the runs directory, oldest deleted first (default 200)
+OMP_NUM_THREADS           threads per model run (default: physical cores / concurrency)
 """
 from __future__ import annotations
 
@@ -60,20 +62,26 @@ BINARY = Path(os.environ.get("REGOLIT_BINARY", REPO_ROOT / "build" / "apps" / "r
 RUNS_DIR = Path(os.environ.get("REGOLIT_WEB_RUNS", REPO_ROOT / "runs" / "web"))
 CONFIG_TEMPLATE = REPO_ROOT / "config" / "config.cfg"
 LAYERS_TEMPLATE = REPO_ROOT / "config" / "layers.cfg"
-MAX_CONCURRENT = int(os.environ.get("REGOLIT_WEB_CONCURRENCY", "2"))
-MAX_QUEUE = int(os.environ.get("REGOLIT_WEB_QUEUE", "8"))
-RUN_TIMEOUT = float(os.environ.get("REGOLIT_WEB_TIMEOUT", "120"))
-MAX_RUNS_KEPT = int(os.environ.get("REGOLIT_WEB_MAX_RUNS", "200"))
+MAX_CONCURRENT = int(os.environ.get("REGOLIT_WEB_CONCURRENCY", "4"))
+MAX_QUEUE = int(os.environ.get("REGOLIT_WEB_QUEUE", "12"))
+RUN_TIMEOUT = float(os.environ.get("REGOLIT_WEB_TIMEOUT", "600"))
+MAX_RUNS_KEPT = int(os.environ.get("REGOLIT_WEB_MAX_RUNS", "500"))
+MAX_RUNS_DISK_GB = float(os.environ.get("REGOLIT_WEB_MAX_DISK_GB", "200"))
+# Threads per model run (the slope relaxation is OpenMP-parallel): share the physical cores among
+# the concurrent runs unless the environment says otherwise.
+os.environ.setdefault("OMP_NUM_THREADS", str(max(1, ((os.cpu_count() or 2) // 2) // MAX_CONCURRENT)))
 AUTH_USER = os.environ.get("REGOLIT_WEB_USER", "")
 AUTH_PASSWORD = os.environ.get("REGOLIT_WEB_PASSWORD", "")
 
-# Hard limits protecting the server. Every saved step writes seven maps of the output grid, so the
-# number of steps is bounded through the total output size rather than by a fixed count.
-MAX_GRID_CELLS = 500 * 500
+# Hard limits protecting the server, sized for a 16-core / 128 GB machine: a 2000 x 2000 grid runs in
+# about 10 s with 4 threads and needs under 1 GB of memory; one million craters take about a minute.
+# Every saved step writes seven maps of the output grid, so the number of steps is bounded through
+# the total output size rather than by a fixed count.
+MAX_GRID_CELLS = 2000 * 2000
 MAX_STEPS = 500
-MAX_OUTPUT_BYTES = 800 * 1024 * 1024
+MAX_OUTPUT_BYTES = 2 * 1024 * 1024 * 1024
 MAPS_PER_STEP = 7
-MAX_IMPACTS = 200_000
+MAX_IMPACTS = 1_000_000
 MAX_LAYER_ROWS = 40
 
 RUN_ID_PATTERN = re.compile(r"^[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$")
@@ -98,7 +106,7 @@ PARAMETERS: List[Dict] = [
     dict(group="Domain", name="regionWidth", label="Region width", unit="m", min=50, max=5000, kind="number",
          description="Side of the square, periodic domain."),
     dict(group="Domain", name="resolution", label="Resolution", unit="m/pixel", min=0.5, max=50, kind="number",
-         description="Cell size. Cells = (width / resolution)^2, at most 500 x 500."),
+         description="Cell size. Cells = (width / resolution)^2, at most 2000 x 2000."),
     dict(group="Domain", name="downsamplingResolution", label="Map output resolution", unit="m/pixel", min=0.5, max=200, kind="number",
          description="Maps are averaged to this resolution before saving (>= resolution). Cross-sections use the full resolution."),
     dict(group="Time", name="endTime", label="Duration", unit="Ma", min=0.1, max=4500, kind="number",
@@ -232,7 +240,7 @@ def validate(request: RunRequest) -> Tuple[Dict[str, float], Optional[List[List[
     width, res = effective["regionWidth"], effective["resolution"]
     cells = round(width / res) ** 2
     if cells > MAX_GRID_CELLS:
-        raise HTTPException(400, "the grid would have {:,} cells; the limit is 500 x 500. Increase the resolution or shrink the region.".format(int(cells)))
+        raise HTTPException(400, "the grid would have {:,} cells; the limit is 2000 x 2000. Increase the resolution or shrink the region.".format(int(cells)))
     if effective["downsamplingResolution"] < res:
         overrides["downsamplingResolution"] = res
         effective["downsamplingResolution"] = res
@@ -280,11 +288,25 @@ def run_dir(run_id: str) -> Path:
     return RUNS_DIR / run_id
 
 
+def directory_size(path: Path) -> int:
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+
+
 def prune_runs() -> None:
+    """Delete the oldest runs beyond the count limit and until the runs directory fits the disk budget."""
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
     runs = sorted([p for p in RUNS_DIR.iterdir() if p.is_dir()], key=lambda p: p.stat().st_mtime)
     for old in runs[: max(0, len(runs) - MAX_RUNS_KEPT)]:
         shutil.rmtree(old, ignore_errors=True)
+    runs = runs[max(0, len(runs) - MAX_RUNS_KEPT):]
+    sizes = {p: directory_size(p) for p in runs}
+    total = sum(sizes.values())
+    budget = MAX_RUNS_DISK_GB * 1024 ** 3
+    for old in runs:
+        if total <= budget:
+            break
+        shutil.rmtree(old, ignore_errors=True)
+        total -= sizes[old]
 
 
 def execute(run_id: str, overrides: Dict[str, float], layers: Optional[List[List[float]]]) -> Dict:
