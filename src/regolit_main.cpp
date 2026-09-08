@@ -99,6 +99,7 @@ double Ybar;
 double mu;
 double targetDensity;
 double seismicEfficiency;
+bool isVolatiles;
 bool isSeismicShaking;
 double Q_factor;
 double prim_seis_freq;
@@ -178,6 +179,16 @@ int main() {
         isEmplaceDistantSecondaries = setVariableOptional(varList, "isEmplaceDistantSecondaries", 0.0) != 0;
         secondaryMaximumRange = setVariableOptional(varList, "secondaryMaximumRange", 100000.0);
         testCraterDiameter = setVariableOptional(varList, "testCraterDiameter", 0.0);
+        // Ice and soot processes. Off: no deposition or sublimation, and the ejecta keeps the composition
+        // of the excavated material (ice and soot are passive tracers of the initial layers).
+        isVolatiles = setVariableOptional(varList, "isVolatiles", 0.0) != 0;
+        if (!isVolatiles) {
+                iceEmplacementThickness = 0;
+                sublimationThickness = 0;
+                ejectaVolatileRetention = 1;
+                ejectaSootRetention = 1;
+                addLogEntry("Ice and soot processes are off (isVolatiles 0): no deposition, no sublimation, ejecta keeps its composition.", true);
+        }
         // Seismic shaking (Richardson 2005, 2009):
         isSeismicShaking = setVariableOptional(varList, "isSeismicShaking", 1.0) != 0;
         seismicEfficiency = setVariableOptional(varList, "seismicEfficiency", 1e-5);

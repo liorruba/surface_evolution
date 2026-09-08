@@ -48,6 +48,14 @@ secondaries; the surface is printed before and after it (two output steps).
 Ballistics are flat-surface at the Z-model launch angles; fragments' landing speed equals their
 ejection speed (no atmosphere), and the crater scaling uses the full landing speed.
 
+### Ice and soot
+
+`isVolatiles 1` turns on the volatile processes: periodic ice deposition (`iceEmplacementInterval`,
+`iceEmplacementThickness`), sublimation (`sublimationInterval`, `sublimationThickness`) and the loss of
+ice and soot from the ejecta (`ejectaVolatileRetention`, `ejectaSootRetention`). With `isVolatiles 0`
+(the default) none of these act, and ice and soot in the initial layers are passive tracers that the
+craters redistribute.
+
 ### Seismic shaking and slope collapse
 
 Following Richardson et al. (2005) and Richardson (2009, Section 2.6), every impact shakes the

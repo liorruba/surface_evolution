@@ -44,6 +44,8 @@ The run setup offers, besides the raw model parameters:
   (secondaries are ejecta fragments; see the main README).
 - A live **estimate** line: expected number of impacts, largest impactor and crater, smallest crater,
   and the basement suggestion, recomputed as you edit (`POST /api/estimate`).
+- An **ice and soot** panel, off by default: ice deposition, sublimation and the retention of ice and
+  soot in ejecta. Off, ice and soot in the initial layers are passive tracers.
 - A **seismic shaking** panel (Richardson 2005, 2009): efficiency, diffusion constant, acceleration
   threshold, frequency, Q, scattering mean free path and seismic velocity; every group with a switch
   folds its other rows when the switch is off.

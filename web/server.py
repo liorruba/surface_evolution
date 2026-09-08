@@ -151,8 +151,6 @@ PARAMETERS: List[Dict] = [
     dict(group="Craters", name="isEmplaceEjecta", label="Ejecta blanket", unit="", min=0, max=1, kind="bool"),
     dict(group="Craters", name="ejectaSpread", label="Ejecta extent", unit="radii", min=2, max=16, kind="int"),
     dict(group="Craters", name="numberOfZModelShells", label="Z-model shells", unit="", min=10, max=500, kind="int"),
-    dict(group="Craters", name="ejectaVolatileRetention", label="Ice retained in ejecta", unit="fraction", min=0, max=1, kind="number"),
-    dict(group="Craters", name="ejectaSootRetention", label="Soot retained in ejecta", unit="fraction", min=0, max=1, kind="number"),
     dict(group="Craters", name="minimumLayerThickness", label="Minimum layer thickness", unit="m", min=0, max=1, kind="number",
          description="Thinner deposits are mixed into the surface layer."),
     dict(group="Secondary craters", name="isEmplaceSecondaries", label="Secondary craters", unit="", min=0, max=1, kind="bool", toggle=True,
@@ -189,6 +187,18 @@ PARAMETERS: List[Dict] = [
          description="Sets the seismic diffusivity together with the wave velocity (125 to 2000 m on the Moon)."),
     dict(group="Seismic shaking", name="seis_wave_vel", label="Seismic velocity", unit="m/s", min=100, max=10000, kind="number",
          description="P-wave velocity in competent rock."),
+    dict(group="Ice and soot", name="isVolatiles", label="Ice and soot processes", unit="", min=0, max=1, kind="bool", toggle=True,
+         description="Periodic ice deposition, sublimation and the loss of ice and soot from ejecta. Off: ice and soot in the initial layers are passive tracers."),
+    dict(group="Ice and soot", name="iceEmplacementInterval", label="Ice deposition interval", unit="Ma", min=0.01, max=4500, kind="number"),
+    dict(group="Ice and soot", name="iceEmplacementThickness", label="Ice deposition thickness", unit="m", min=0, max=10, kind="number",
+         description="Ice added on the surface at every interval (0 disables)."),
+    dict(group="Ice and soot", name="sublimationInterval", label="Sublimation interval", unit="Ma", min=0.01, max=4500, kind="number"),
+    dict(group="Ice and soot", name="sublimationThickness", label="Sublimation thickness", unit="m", min=0, max=10, kind="number",
+         description="Ice removed from icy surfaces at every interval (0 disables)."),
+    dict(group="Ice and soot", name="ejectaVolatileRetention", label="Ice retained in ejecta", unit="fraction", min=0, max=1, kind="number",
+         description="Fraction of the excavated ice that lands in the ejecta blanket."),
+    dict(group="Ice and soot", name="ejectaSootRetention", label="Soot retained in ejecta", unit="fraction", min=0, max=1, kind="number",
+         description="Fraction of the excavated soot that lands in the ejecta blanket."),
     # Test mode (not shown in the setup form; set by the Tests tab and kept by "Edit & run again"):
     dict(group="Test", name="testCraterDiameter", label="Test crater diameter", unit="m", min=0, max=100_000, kind="number", hidden=True,
          description="Form one crater of this final diameter instead of the random population (0 = off)."),
@@ -198,9 +208,6 @@ PARAMETERS: List[Dict] = [
          description="Automatic: the initial layers plus three times the depth of the largest expected crater. Untick to override."),
     dict(group="Subsurface", name="depthToIntegrate", label="Integration depth", unit="m", min=0.005, max=100, kind="number",
          description="Depth of the integrated-composition maps."),
-    dict(group="Subsurface", name="iceEmplacementInterval", label="Ice deposition interval", unit="Ma", min=0.01, max=4500, kind="number"),
-    dict(group="Subsurface", name="iceEmplacementThickness", label="Ice deposition thickness", unit="m", min=0, max=10, kind="number",
-         description="Ice added on icy surfaces at every interval (0 disables)."),
 ]
 PARAMETER_INDEX = {p["name"]: p for p in PARAMETERS}
 MAP_KINDS = {

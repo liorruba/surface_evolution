@@ -69,6 +69,7 @@ extern double Ybar;
 extern double mu;
 extern double targetDensity;
 extern double seismicEfficiency; // Fraction of the impact energy radiated as seismic energy (Richardson 2005, 2009)
+extern bool isVolatiles;         // Ice and soot processes (deposition, sublimation, loss from ejecta); off: passive tracers only
 extern bool isSeismicShaking;    // Seismic shaking and local slope collapse after every impact
 extern double Q_factor;          // Seismic quality factor
 extern double prim_seis_freq;    // Primary seismic frequency, Hz
