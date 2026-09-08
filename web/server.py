@@ -992,7 +992,7 @@ def render_figure(run_id: str, name: str, scale: int = 1) -> Path:
             axes[0].text(x_text, 0.01 * geometric * 1.1, "1%", fontsize=6.5, color=THEME["muted"])
             axes[0].set_xlabel("crater diameter [m]"); axes[0].set_ylabel("R"); axes[0].set_title("R-plot (√2 bins)", fontsize=10)
             axes[1].set_xlabel("crater diameter [m]"); axes[1].set_ylabel("count per √2 bin"); axes[1].set_title("Counts per √2 bin", fontsize=10)
-            legend = axes[0].legend(loc="lower left", **legend_kwargs); legend.get_frame().set_alpha(0.9)
+            legend = axes[0].legend(loc="upper right", **legend_kwargs); legend.get_frame().set_alpha(0.9)
 
         else:   # turnover: Gault et al. (1974), Fig. 12
             # Expected number of times a point was excavated to at least depth d by the primaries formed so
