@@ -26,6 +26,7 @@
 #include "../include/subsurf_column.hpp"
 #include "../include/grid.hpp"
 #include "../include/secondaries.hpp"
+#include "../include/seismic.hpp"
 
 //////////////////////////////
 // DECLARE INPUT PARAMETERS //
@@ -98,17 +99,13 @@ double Ybar;
 double mu;
 double targetDensity;
 double seismicEfficiency;
+bool isSeismicShaking;
 double Q_factor;
 double prim_seis_freq;
 double seis_mean_free;
 double seis_wave_vel;
-
-// Seismic diffusivity parameters
-double Cs;
-double Ki_a;
-double Ki_b;
-double Ki_c;
-double Ki_d;
+double seismicAccelerationThreshold;
+double Cs, Ki_a, Ki_b, Ki_c, Ki_d;
 
 ////////////////
 // START MAIN //
@@ -181,6 +178,19 @@ int main() {
         isEmplaceDistantSecondaries = setVariableOptional(varList, "isEmplaceDistantSecondaries", 0.0) != 0;
         secondaryMaximumRange = setVariableOptional(varList, "secondaryMaximumRange", 100000.0);
         testCraterDiameter = setVariableOptional(varList, "testCraterDiameter", 0.0);
+        // Seismic shaking (Richardson 2005, 2009):
+        isSeismicShaking = setVariableOptional(varList, "isSeismicShaking", 1.0) != 0;
+        seismicEfficiency = setVariableOptional(varList, "seismicEfficiency", 1e-5);
+        Q_factor = setVariableOptional(varList, "Q_factor", 1500.0);
+        prim_seis_freq = setVariableOptional(varList, "prim_seis_freq", 15.0);
+        seis_mean_free = setVariableOptional(varList, "seis_mean_free", 1000.0);
+        seis_wave_vel = setVariableOptional(varList, "seis_wave_vel", 3000.0);
+        seismicAccelerationThreshold = setVariableOptional(varList, "seismicAccelerationThreshold", 1.0);
+        Cs = setVariableOptional(varList, "Cs", 1e-2);
+        Ki_a = setVariableOptional(varList, "Ki_a", 0.5);
+        Ki_b = setVariableOptional(varList, "Ki_b", 1.0);
+        Ki_c = setVariableOptional(varList, "Ki_c", 0.5);
+        Ki_d = setVariableOptional(varList, "Ki_d", 0.5);
         testCraterX = setVariableOptional(varList, "testCraterX", 0.0);
         testCraterY = setVariableOptional(varList, "testCraterY", 0.0);
         iceDensity = setVariable(varList, "iceDensity");
@@ -321,6 +331,12 @@ int main() {
         //////////////////////
         // Start simulation //
         //////////////////////
+        if (isSeismicShaking) {
+                const Impactor smallest(0.5 * minimumImpactorDiameter);
+                addLogEntry("Seismic shaking on: the smallest impactor (" + std::to_string(minimumImpactorDiameter) + " m) shakes out to " +
+                            std::to_string(SeismicShaking::range(2 * smallest.radius, smallest.velocity, smallest.density)) + " m; a 1 m impactor out to " +
+                            std::to_string(SeismicShaking::range(1.0, meanImpactVelocity, impactorDensity)) + " m.", true);
+        }
         addLogEntry("Running simulation...", true);
 
         if (testCraterDiameter > 0) {
@@ -365,8 +381,6 @@ int main() {
 
                 // Print progress to a file:
                 if (i % numberOfCratersInTimestep == 0) {
-                        // Let slopes above the angle of repose fail:
-                        grid.thresholdSlopes(angleOfRepose);
                         // Print the surface, the integrated subsurface and (optionally) the full subsurface:
                         grid.printSurface(printIndex, false);
                         grid.printIntegratedSubsurface(depthToIntegrate, printIndex);
@@ -386,6 +400,11 @@ int main() {
                 addLogEntry("Secondary craters: " + std::to_string(secondaries.secondariesFormed) + " from " + std::to_string(secondaries.primariesWithSecondaries) +
                             " primaries inside the domain" + (isEmplaceDistantSecondaries ? ", " + std::to_string(secondaries.distantSecondariesFormed) + " from " +
                             std::to_string(secondaries.distantPrimariesSampled) + " distant primaries" : std::string("")) + ".", true);
+        }
+        if (isSeismicShaking) {
+                addLogEntry("Seismic shaking: " + std::to_string(SeismicShaking::shakes) + " impacts shook their surroundings, " +
+                            std::to_string(SeismicShaking::wholeDomainShakes) + " of them the whole domain; " +
+                            std::to_string(SeismicShaking::distantShakes) + " distant primaries shook the domain.", true);
         }
         if (Crater::zModelWarnings > 0) {
                 addLogEntry("Z-model annuli with a non-increasing landing distance were skipped in " + std::to_string(Crater::zModelWarnings) + " craters.", true);

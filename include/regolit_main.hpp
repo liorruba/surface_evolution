@@ -68,15 +68,11 @@ extern double k2; // Strength-regime scaling constant (Holsapple 1993 K2; 1 repr
 extern double Ybar;
 extern double mu;
 extern double targetDensity;
-extern double seismicEfficiency;
-extern double Q_factor;
-extern double prim_seis_freq;
-extern double seis_mean_free;
-extern double seis_wave_vel;
-
-// Seismic diffusivity parameters
-extern double Cs;
-extern double Ki_a;
-extern double Ki_b;
-extern double Ki_c;
-extern double Ki_d;
+extern double seismicEfficiency; // Fraction of the impact energy radiated as seismic energy (Richardson 2005, 2009)
+extern bool isSeismicShaking;    // Seismic shaking and local slope collapse after every impact
+extern double Q_factor;          // Seismic quality factor
+extern double prim_seis_freq;    // Primary seismic frequency, Hz
+extern double seis_mean_free;    // Mean free path for seismic scattering, m
+extern double seis_wave_vel;     // Seismic P-wave velocity, m/s
+extern double seismicAccelerationThreshold; // Regolith moves where the peak acceleration exceeds this times g
+extern double Cs, Ki_a, Ki_b, Ki_c, Ki_d;    // Diffusion dose K_i = Cs v^a D^b g^c / l^d (Richardson 2009, Eq. 32)

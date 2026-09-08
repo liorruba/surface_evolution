@@ -28,6 +28,10 @@ double finalDepth;        // rim-to-floor depth, as opposed to transient depth
 double finalDepth_init;   // depth at formation
 double rimHeight;
 double floorElevation;    // surface elevation at the crater center after formation
+double projectileDiameter = 0;   // the impactor (0 for craters given by radius): drives the seismic shaking
+double projectileVelocity = 0;
+double projectileDensity = 0;
+bool isGhost = false;            // periodic copy of a primary: formed, but does not shake or spawn secondaries again
 Layer ejectedMass;                    // composition of the excavated material (thickness = summed excavated thickness)
 std::vector<double> ejectaDistance;   // distances from the crater center, ascending, m
 std::vector<double> ejectaThickness;  // ejecta blanket thickness at those distances, m

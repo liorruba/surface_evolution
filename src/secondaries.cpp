@@ -7,6 +7,7 @@
 #include "../include/log.hpp"
 #include "../include/impactor.hpp"
 #include "../include/secondaries.hpp"
+#include "../include/seismic.hpp"
 
 SecondaryModel::SecondaryModel(double _regionWidth) : halfWidth(_regionWidth / 2), rings(), speedTable(), smallestFragmentTable() {
         buildFragmentTable();
@@ -226,6 +227,7 @@ long SecondaryModel::processDistantPrimaries(long impactorIndex, Grid &grid) {
                                 grid.formCrater(secondary);
                         }
                         formed += fragments.size();
+                        SeismicShaking::shakeFromOutside(grid, x, y, primary.finalRadius, 2 * impactorRadius, meanImpactVelocity, impactorDensity);
                 }
         }
         distantSecondariesFormed += formed;

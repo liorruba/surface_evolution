@@ -44,6 +44,9 @@ The run setup offers, besides the raw model parameters:
   (secondaries are ejecta fragments; see the main README).
 - A live **estimate** line: expected number of impacts, largest impactor and crater, smallest crater,
   and the basement suggestion, recomputed as you edit (`POST /api/estimate`).
+- A **seismic shaking** panel (Richardson 2005, 2009): efficiency, diffusion constant, acceleration
+  threshold, frequency, Q, scattering mean free path and seismic velocity; every group with a switch
+  folds its other rows when the switch is off.
 - A **Tests** tab on the setup page with predefined scenarios (`TESTS` in `server.py`); the first
   forms a single 1 km crater with its secondaries on a 10 km domain. A test runs like any other run
   (its card and title say so), and "Edit & run again" keeps the test crater (a notice says so in the

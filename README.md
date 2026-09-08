@@ -48,6 +48,29 @@ secondaries; the surface is printed before and after it (two output steps).
 Ballistics are flat-surface at the Z-model launch angles; fragments' landing speed equals their
 ejection speed (no atmosphere), and the crater scaling uses the full landing speed.
 
+### Seismic shaking and slope collapse
+
+Following Richardson et al. (2005) and Richardson (2009, Section 2.6), every impact shakes the
+surface around it (`include/seismic.hpp`, `src/seismic.cpp`):
+
+- The impact radiates `seismicEfficiency` of its kinetic energy as seismic energy that spreads in a
+  thin hemispherical shell and is attenuated by scattering, E(l) = (η/12) π ρ_i v² d³ exp(−2πf l² /
+  (K_s π² Q)) with K_s = v_s l_s / 3 (`prim_seis_freq`, `Q_factor`, `seis_wave_vel`, `seis_mean_free`).
+  The peak acceleration a = 2πf √(2ε/ρ_t) defines the seismic range where it exceeds
+  `seismicAccelerationThreshold` times g.
+- Inside that range the regolith receives one dose of downslope diffusion, Δz = ∇·(K ∇z) with
+  K = `Cs` v^`Ki_a` D^`Ki_b` g^`Ki_c` / l^`Ki_d` (Eq. 32; D is the impactor diameter, as fitted in
+  Richardson et al. 2005, Fig. 14B; l is floored at the crater radius), applied in flux form within the
+  explicit stability limit, followed by the collapse of slopes above `angleOfRepose`. The settling is
+  local: the wrapped box of the seismic range, or at least 1.5 crater radii for the wall collapse. There
+  is no global relaxation at output steps any more (one final check remains at the end of the run).
+- Distant primaries (secondary-crater model) shake the domain from outside when it lies within
+  their range. Ghost craters do not shake again: the primary's settling wraps around the domain.
+- `isSeismicShaking 0` keeps only the local wall collapse after each crater.
+
+Defaults (η = 10⁻⁵, Cs = 10⁻², f = 15 Hz, Q = 1500, l_s = 1 km, v_s = 3 km/s, threshold 1 g) sit in
+the middle of Richardson's ranges; the overall degradation rate is uncertain by an order of magnitude.
+
 ### Debugging
 `make debug` builds `build/apps/regolit_main_debug.run` with AddressSanitizer and
 UndefinedBehaviorSanitizer enabled. Run it exactly like the release binary; it is a few times slower

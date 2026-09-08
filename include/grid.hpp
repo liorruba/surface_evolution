@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 #include "layer.hpp"
@@ -42,6 +43,12 @@ Grid(std::vector< std::vector<double> > _initLayersList, std::vector<int8_t> _px
 // crater and updates the depths of older craters affected by it.
 void formCrater(Crater &crater);
 void thresholdSlopes(double angleOfRepose);
+// Settle the surface in the (periodically wrapped) square of the given half-width around (xc, yc):
+// an optional downslope-diffusion dose K(l) [m^2] as a function of the distance l from (xc, yc)
+// (periodic minimum-image distances when periodicDistance, plain distances otherwise), then the
+// collapse of slopes above slopeOfRepose (rise over run). The changes are applied to the columns.
+void updateCraterDepthsWithin(double x, double y, double reach);
+void settleRegion(double xc, double yc, double halfWidth, const std::function<double(double)> *dose, double slopeOfRepose, bool periodicDistance);
 void printSurface(int index, bool isfinal);
 void printSubsurface(int index);
 void printIntegratedSubsurface(double depth, int index);
@@ -73,5 +80,7 @@ double craterSphericalDepthProfile(double craterRadius, double craterDepth, doub
 double getSurfaceElevationAtPoint(double x, double y) const;
 std::vector<double> surfaceElevationMap() const;
 void relaxSlopes(std::vector<double> &z, double maxSlope) const;
+static void relaxBuffer(std::vector<double> &z, long ni, long nj, bool periodicI, bool periodicJ, double maxSlope, double cellSize);
+static void diffuseBuffer(std::vector<double> &z, const std::vector<double> &dose, long ni, long nj, bool periodicI, bool periodicJ, double cellSize);
 void writeMatrix(const std::string &fileName, const std::vector< std::vector<double> > &matrix);
 };

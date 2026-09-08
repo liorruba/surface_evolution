@@ -30,6 +30,7 @@ Crater::Crater(Impactor impactor, double _xLocation, double _yLocation) : ejecte
 Crater::Crater(Impactor impactor, double _xLocation, double _yLocation, Layer _ejectedMass) : ejectedMass(_ejectedMass), ejectaDistance(), ejectaThickness(), ejectaShells() {
         xLocation = _xLocation;
         yLocation = _yLocation;
+        isGhost = true;
         initializeFromImpactor(impactor, depthToDiameter);
 }
 
@@ -56,6 +57,9 @@ Crater::Crater(double _xLocation, double _yLocation, double _finalRadius, double
 
 // Shared part of the impactor-based constructors:
 void Crater::initializeFromImpactor(const Impactor &impactor, double depthRatio) {
+        projectileDiameter = 2 * impactor.radius;
+        projectileVelocity = impactor.velocity;
+        projectileDensity = impactor.density;
         transientRadius = calcTransientCraterRadius(impactor);
         transientRadiusGravity = calcTransientCraterRadiusGravity(impactor);
         finalRadius = calcFinalCraterRadius();

@@ -375,10 +375,12 @@
       if (group === "Impactors") box.appendChild(presetRow("pf", "Production function", "Crater production function converted to an impactor flux through the crater scaling and fitted by a power law over the run's impactor sizes.",
         Object.entries(S.meta.production_functions).map(([k, v]) => [k, v.label + (v.available ? "" : " (not available)"), !v.available])));
       if (params.every(p => p.hidden)) continue;
+      const master = params.find(p => p.toggle && !p.depends);   // the group's switch, if any: the other rows fold when it is off
       params.forEach(p => {
         if (p.hidden) return;
         const row = document.createElement("div");
-        row.className = "row" + (group === "Secondary craters" && p.name !== "isEmplaceSecondaries" ? " dep" : "");
+        row.className = "row" + (master && p.name !== master.name ? " dep" : "");
+        if (master && p.name !== master.name) row.dataset.master = master.name;
         if (p.depends) row.dataset.depends = p.depends;
         const label = document.createElement("label");
         label.htmlFor = "p_" + p.name;
@@ -448,11 +450,11 @@
     $("p_earthFluxRatioCoefficient").value = S.presets.production_function === "power_law" ? fmt(S.meta.defaults.earthFluxRatioCoefficient) : "1";
   }
   function applyBasementMode() { $("p_initialThickness").disabled = !!S.presets.basement_auto; }
-  function applySecondaries() {
-    const on = $("p_isEmplaceSecondaries").value === "1";
+  function applySecondaries() {   // folds the rows of every group whose switch is off (and nested switches)
     document.querySelectorAll(".row.dep").forEach(r => {
+      const master = r.dataset.master ? $("p_" + r.dataset.master) : null;
       const parent = r.dataset.depends ? $("p_" + r.dataset.depends) : null;
-      r.classList.toggle("off", !on || (parent && parent.value !== "1"));
+      r.classList.toggle("off", (master && master.value !== "1") || (parent && parent.value !== "1"));
     });
   }
   function setParameters(values) {
