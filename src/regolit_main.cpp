@@ -25,6 +25,7 @@
 #include "../include/crater.hpp"
 #include "../include/subsurf_column.hpp"
 #include "../include/grid.hpp"
+#include "../include/secondaries.hpp"
 
 //////////////////////////////
 // DECLARE INPUT PARAMETERS //
@@ -57,6 +58,11 @@ double minimumLayerThickness; // Deposits thinner than this (m) are mixed into t
 double slope_secondaries; // Slope of the secondary crater size distribution
 double secondaryLargestFraction; // Largest secondary radius as a fraction of the primary radius
 double secondaryDepthToDiameter; // Depth to diameter ratio of secondary craters
+double secondaryMinimumVelocity; // Landing speed below which ejecta only builds the blanket, m/s
+double secondaryVelocityExponent; // Largest fragment shrinks with ejection speed as v^-exponent
+double maximumSecondariesPerPrimary; // Budget: only the largest N secondaries of a primary are formed
+bool isEmplaceDistantSecondaries; // Sample primaries outside the domain and form the fragments they send in
+double secondaryMaximumRange; // Distance beyond the domain edge out to which distant primaries are sampled, m
 double iceDensity; // The density of ice
 double regolithDensity; // The density of regolith
 double sootDensity; // The density of "soot"
@@ -166,6 +172,11 @@ int main() {
         slope_secondaries = setVariable(varList, "slope_secondaries");
         secondaryLargestFraction = setVariableOptional(varList, "secondaryLargestFraction", 0.05);
         secondaryDepthToDiameter = setVariableOptional(varList, "secondaryDepthToDiameter", setVariable(varList, "depthToDiameter"));
+        secondaryMinimumVelocity = setVariableOptional(varList, "secondaryMinimumVelocity", 20.0);
+        secondaryVelocityExponent = setVariableOptional(varList, "secondaryVelocityExponent", 1.0);
+        maximumSecondariesPerPrimary = setVariableOptional(varList, "maximumSecondariesPerPrimary", 20000.0);
+        isEmplaceDistantSecondaries = setVariableOptional(varList, "isEmplaceDistantSecondaries", 0.0) != 0;
+        secondaryMaximumRange = setVariableOptional(varList, "secondaryMaximumRange", 100000.0);
         iceDensity = setVariable(varList, "iceDensity");
         regolithDensity = setVariable(varList, "regolithDensity");
         sootDensity = setVariable(varList, "sootDensity");
@@ -249,6 +260,12 @@ int main() {
         if (sizeof(CraterRecord) * totalNumberOfImpactors > 1e9)
                 addLogEntry("WARNING: memory taken by the crater records exceeds 1 GB.", true);
 
+        // Secondary craters (ejecta fragments), and the distant primaries that send fragments into the domain:
+        SecondaryModel secondaries(regionWidth);
+        if (isEmplaceSecondaries && isEmplaceDistantSecondaries) {
+                secondaries.initializeDistantPrimaries(totalNumberOfImpactors, endTime);
+        }
+
         // Craters and impactors histograms:
         Histogram cratersHistogram(minimumImpactorDiameter * 10, regionWidth, 20); // Crater histogram from 10*minimumImpactorDiameter to regionWidth meters
         Histogram impactorsHistogram(minimumImpactorDiameter, 1e4, 20); // Impactor histogram from minimumImpactorDiameter m to 10 km
@@ -299,20 +316,16 @@ int main() {
                                 grid.formCrater(ghost);
                         }
 
-                        // Secondary craters: radii follow N(>r) = (r_max / r)^slope between one pixel and
-                        // secondaryLargestFraction of the primary radius, within 4 primary radii of the primary.
-                        if (isEmplaceSecondaries && crater.numberOfSecondaries > 0) {
-                                const double largestSecondaryRadius = secondaryLargestFraction * crater.finalRadius;
-                                const double truncation = 1 - pow(resolution / largestSecondaryRadius, slope_secondaries);
-                                addLogEntry("Primary diameter: " + std::to_string(2*crater.finalRadius) + ". Number of secondaries: " + std::to_string(crater.numberOfSecondaries) + ".", false);
-                                for (long j = 0; j < crater.numberOfSecondaries; j++) {
-                                        double secondaryxLocation = randU(crater.xLocation - 4 * crater.finalRadius, crater.xLocation + 4 * crater.finalRadius);
-                                        double secondaryyLocation = randU(crater.yLocation - 4 * crater.finalRadius, crater.yLocation + 4 * crater.finalRadius);
-                                        double secondaryRadius = resolution * pow(1 - randU(0, 1) * truncation, -1 / slope_secondaries);
-                                        Crater secondaryCrater(secondaryxLocation, secondaryyLocation, secondaryRadius, secondaryDepthToDiameter);
-                                        grid.formCrater(secondaryCrater);
-                                }
+                        // Secondary craters: fragments of the fast ejecta of this primary that land in the domain
+                        // (see include/secondaries.hpp).
+                        if (isEmplaceSecondaries) {
+                                secondaries.formSecondaries(crater, grid);
                         }
+                }
+
+                // Secondaries sent into the domain by primaries that formed outside it:
+                if (isEmplaceSecondaries && isEmplaceDistantSecondaries) {
+                        secondaries.processDistantPrimaries(i, grid);
                 }
 
                 // Sublimate material every sublimation period:
@@ -348,6 +361,11 @@ int main() {
 
         }
         // Print craters histogram to file:
+        if (isEmplaceSecondaries) {
+                addLogEntry("Secondary craters: " + std::to_string(secondaries.secondariesFormed) + " from " + std::to_string(secondaries.primariesWithSecondaries) +
+                            " primaries inside the domain" + (isEmplaceDistantSecondaries ? ", " + std::to_string(secondaries.distantSecondariesFormed) + " from " +
+                            std::to_string(secondaries.distantPrimariesSampled) + " distant primaries" : std::string("")) + ".", true);
+        }
         if (Crater::zModelWarnings > 0) {
                 addLogEntry("Z-model annuli with a non-increasing landing distance were skipped in " + std::to_string(Crater::zModelWarnings) + " craters.", true);
         }

@@ -13,18 +13,28 @@
 Impactor::Impactor() {
   double quantile = randU(0,1);
   radius = 0.5 * minimumImpactorDiameter * pow(quantile, -1/slope_b); // Set impactor radius from the cumulative distribution, meters
+  velocity = meanImpactVelocity;
+  density = impactorDensity;
   mass = calcMass(radius);
-  velocity = meanImpactVelocity;
 }
 
-// Initialize an impactor with given parameters
+// Initialize an impactor with given radius
 Impactor::Impactor(double _radius) {
-  radius = _radius; // Set impactor radius from the cumulative distribution, meters
-  mass = calcMass(_radius);
+  radius = _radius;
   velocity = meanImpactVelocity;
+  density = impactorDensity;
+  mass = calcMass(_radius);
 }
 
-// Calculate impactor mass, kg 
-double Impactor::calcMass(double radius){
-  return 4.0 / 3.0 * M_PI * pow(radius ,3) * impactorDensity;
+// Initialize a fully specified impactor (ejecta fragments: target material at the landing speed)
+Impactor::Impactor(double _radius, double _velocity, double _density) {
+  radius = _radius;
+  velocity = _velocity;
+  density = _density;
+  mass = calcMass(_radius);
+}
+
+// Calculate impactor mass, kg
+double Impactor::calcMass(double _radius) const {
+  return 4.0 / 3.0 * M_PI * pow(_radius, 3) * density;
 }

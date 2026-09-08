@@ -356,7 +356,8 @@
         Object.entries(S.meta.production_functions).map(([k, v]) => [k, v.label + (v.available ? "" : " (not available)"), !v.available])));
       params.forEach(p => {
         const row = document.createElement("div");
-        row.className = "row" + (group === "Secondary craters" && !p.toggle ? " dep" : "");
+        row.className = "row" + (group === "Secondary craters" && p.name !== "isEmplaceSecondaries" ? " dep" : "");
+        if (p.depends) row.dataset.depends = p.depends;
         const label = document.createElement("label");
         label.htmlFor = "p_" + p.name;
         label.title = p.description || "";
@@ -427,7 +428,10 @@
   function applyBasementMode() { $("p_initialThickness").disabled = !!S.presets.basement_auto; }
   function applySecondaries() {
     const on = $("p_isEmplaceSecondaries").value === "1";
-    document.querySelectorAll(".row.dep").forEach(r => r.classList.toggle("off", !on));
+    document.querySelectorAll(".row.dep").forEach(r => {
+      const parent = r.dataset.depends ? $("p_" + r.dataset.depends) : null;
+      r.classList.toggle("off", !on || (parent && parent.value !== "1"));
+    });
   }
   function setParameters(values) {
     S.meta.parameters.forEach(p => {

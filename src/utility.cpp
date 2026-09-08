@@ -32,6 +32,34 @@ double randU(double low, double high)
 	return (high - low) * drand48() + low;
 }
 
+// Poisson-distributed count (Knuth's method for small means, normal approximation for large ones):
+long randPoisson(double mean)
+{
+	if (mean <= 0)
+		return 0;
+	if (mean < 50) {
+		const double limit = exp(-mean);
+		long k = 0;
+		double product = drand48();
+		while (product > limit) {
+			k++;
+			product *= drand48();
+		}
+		return k;
+	}
+	const double u1 = std::max(drand48(), 1e-300), u2 = drand48();
+	const double normal = sqrt(-2 * log(u1)) * cos(2 * M_PI * u2);
+	return std::max(0L, (long) llround(mean + sqrt(mean) * normal));
+}
+
+// Exponentially distributed waiting time:
+double randExponential(double mean)
+{
+	if (!(mean < INFINITY))
+		return INFINITY;
+	return -mean * log(std::max(drand48(), 1e-300));
+}
+
 // Creates a linearly spaced vector of length numberOfElements over a range defined by [low,high].
 std::vector<double> linspace(double low, double high, int numberOfElements) {
 	if (numberOfElements <= 0) {

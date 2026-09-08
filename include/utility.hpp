@@ -14,6 +14,8 @@ uint64_t get_time();
 
 // Generate a uniformly distributed random number:
 double randU(double low, double high);
+long randPoisson(double mean);          // Poisson-distributed count with the given mean
+double randExponential(double mean);    // exponentially distributed waiting time with the given mean
 
 // Creates a linearly spaced vector of length numberOfElements over a range defined by [low,high].
 std::vector<double> linspace(double low, double high, int numberOfElements);

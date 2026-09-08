@@ -38,8 +38,10 @@ The run setup offers, besides the raw model parameters:
   All constants live in `python/regolit/scaling.py`.
 - An **automatic basement thickness**: the initial layers plus three times the depth of the
   largest crater expected in the run, with a checkbox to override it.
-- A **secondary craters** panel (largest secondary as a fraction of the primary radius,
-  size-distribution slope, depth/diameter) that unfolds when secondaries are switched on.
+- A **secondary craters** panel that unfolds when secondaries are switched on: minimum landing
+  speed, largest secondary / primary diameter, fragment size–speed exponent, fragment size-distribution
+  slope, depth/diameter, the per-primary budget, and the distant-primaries switch with its range
+  (secondaries are ejecta fragments; see the main README).
 - A live **estimate** line: expected number of impacts, largest impactor and crater, smallest crater,
   and the basement suggestion, recomputed as you edit (`POST /api/estimate`).
 - **Saved settings**: the bar at the bottom of the setup page stores the parameters, layers and

@@ -29,6 +29,11 @@ extern double minimumLayerThickness; // Deposits thinner than this (m) are mixed
 extern double slope_secondaries; // Slope of the secondary crater size distribution
 extern double secondaryLargestFraction; // Largest secondary radius as a fraction of the primary radius
 extern double secondaryDepthToDiameter; // Depth to diameter ratio of secondary craters
+extern double secondaryMinimumVelocity; // Landing speed below which ejecta only builds the blanket, m/s
+extern double secondaryVelocityExponent; // Largest fragment shrinks with ejection speed as v^-exponent
+extern double maximumSecondariesPerPrimary; // Budget: only the largest N secondaries of a primary are formed
+extern bool isEmplaceDistantSecondaries; // Sample primaries outside the domain and form the fragments they send in
+extern double secondaryMaximumRange; // Distance beyond the domain edge out to which distant primaries are sampled, m
 extern double iceDensity; // The density of ice
 extern double regolithDensity; // The density of regolith
 extern double sootDensity; // The density of "soot"

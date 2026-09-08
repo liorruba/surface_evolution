@@ -9,9 +9,40 @@ and adds an efficient 3-D description of the subsurface using layers.
 3. To run, execute `./build/apps/regolit_main.run` from the `REGOLIT` directory (it reads `config/` and writes `output/` and `log/`).
 4. The crater scaling follows Holsapple (1993): `k1`, `mu`, the effective strength `Ybar` and the
    strength constant `k2` (optional, default 1 as in the original model; 0.26 for soils and regolith).
-5. Secondary craters (`isEmplaceSecondaries 1`) follow `N(>r) = (r_max / r)^slope_secondaries` between
-   one pixel and `secondaryLargestFraction` of the primary radius, with their own `secondaryDepthToDiameter`.
+5. Secondary craters (`isEmplaceSecondaries 1`) are ejecta fragments, see "Secondary craters" below.
 6. The output will be saved in the `output` directory: binary files containing the surface elevation, surface composition and subsurface layers, and `existing_craters.txt`, the list of craters still visible at the end of the run.
+
+### Secondary craters
+
+Secondaries are formed from the ejecta of every primary rather than scattered at random. The Z-model
+already divides the transient cavity into launch annuli with an ejection speed and a landing ring
+(Richardson 2009); the secondary model (`include/secondaries.hpp`, `src/secondaries.cpp`) uses them:
+
+- Ejecta landing slower than `secondaryMinimumVelocity` (default 20 m/s) only builds the continuous
+  blanket, which the grid already emplaces. Faster annuli are treated as fragment populations.
+- Fragments follow a cumulative size-frequency distribution `N(>L) = (L_max / L)^slope_secondaries`
+  per annulus, weighted by the annulus volume. The largest fragment is anchored where the secondary
+  field begins, in the annulus landing about three primary radii out: there it makes a crater of
+  `secondaryLargestFraction` times the primary diameter (about 0.05 on the Moon, Allen 1979; Melosh
+  1989). Faster annuli have smaller largest fragments, `L_max(v) = L_anchor (v / v_anchor)^-secondaryVelocityExponent`
+  (1 for spallation scaling, Melosh 1984; Vickery 1986, 1987); slower ones are capped at `L_anchor`.
+  The fragments of an annulus never carry more volume than the annulus.
+- Each fragment lands in its annulus' landing ring at a random azimuth and forms a crater with the
+  same pi-scaling as the primaries, using the fragment's mass (target density) and landing speed,
+  with `secondaryDepthToDiameter`. A fragment forms a distinct crater only where that crater is deeper
+  than the primary's blanket at the landing distance; nearer the rim it is buried, which places the
+  inner edge of the secondary field beyond the continuous ejecta without a size-dependent rule.
+  Only craters at least two pixels across are formed, and only the largest
+  `maximumSecondariesPerPrimary` of a primary (the size floor is raised so the population fits).
+- Fragments that land outside the domain are dropped. With `isEmplaceDistantSecondaries 1` the
+  primaries that form outside the domain, out to `secondaryMaximumRange` beyond its edge, are sampled
+  too (in square rings of doubling width, each restricted to the primaries large enough to deliver a
+  resolvable secondary at that distance, at the same flux as the domain), and the fragments they send
+  into the domain are formed. This supplies the background of distant secondaries that dominates the
+  small-crater population near large primaries.
+
+Ballistics are flat-surface at the Z-model launch angles; fragments' landing speed equals their
+ejection speed (no atmosphere), and the crater scaling uses the full landing speed.
 
 ### Debugging
 `make debug` builds `build/apps/regolit_main_debug.run` with AddressSanitizer and
