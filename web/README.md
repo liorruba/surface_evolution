@@ -46,8 +46,11 @@ The run setup offers, besides the raw model parameters:
   and the basement suggestion, recomputed as you edit (`POST /api/estimate`).
 - **Figures**: four clickable figures (a click opens a high-resolution version): the crater size
   distributions (cumulative and per bin, formed and visible, the visible ones also exactly), an R-plot
-  in √2 bins, the impactor size distribution, and the regolith turnover diagram after Gault et al.
-  (1974, Fig. 12) with expected and 99%-probability curves at several times. The histograms behind
+  in √2 bins, the impactor size distribution, and the regolith turnover diagram computed with the
+  method of Gault et al. (1974, Eqs. 12–15): turnover depth D_a/8, λ = N(≥D_a) π (0.375 D_a)² t
+  from the run's cumulative crater production, with the expected number λ and the 50% and 99%
+  Poisson curves at Gault's ages (10⁶ to 4.6×10⁹ yr, scaled under the constant flux) and at the
+  run's own duration. It is comparable with Gault's constant-flux Fig. 9. The histograms behind
   them use `histogramBinsPerDecade` log bins per decade (default 40, editable in the Time group).
 - An **ice and soot** panel, off by default: ice deposition, sublimation and the retention of ice and
   soot in ejecta. Off, ice and soot in the initial layers are passive tracers.

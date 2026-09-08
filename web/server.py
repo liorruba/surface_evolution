@@ -875,24 +875,54 @@ def rebin(bins: np.ndarray, counts: np.ndarray, factor: int) -> Tuple[np.ndarray
     return edges, merged
 
 
-def poisson_lower_quantile(mean: np.ndarray, probability: float = 0.99) -> np.ndarray:
-    """Smallest k with P(N >= k) >= probability for a Poisson variable of the given mean (Gault et al. 1974, 99% curves)."""
-    from math import exp, lgamma, log
-    out = np.zeros_like(mean, dtype=float)
-    for index, mu in enumerate(mean):
-        if mu <= 0:
-            continue
-        if mu > 200:   # normal approximation
-            out[index] = max(0.0, mu - 2.326 * np.sqrt(mu))
-            continue
-        cdf, k = 0.0, 0
-        target = 1 - probability
-        while True:
-            cdf += exp(k * log(mu) - mu - lgamma(k + 1))
-            if cdf >= target:
-                break
-            k += 1
-        out[index] = k
+_TURNOVER_TABLE: Dict[float, Tuple[np.ndarray, np.ndarray]] = {}
+
+
+def poisson_lambda_for_count(n: int, probability: float) -> float:
+    """The Poisson mean at which n or more events occur with the given probability (Gault et al. 1974, Table 1)."""
+    from math import exp, lgamma, log, sqrt
+    if n > 200:   # normal approximation with continuity correction; z is the (1 - p) quantile of the standard normal
+        z = {0.5: 0.0, 0.9: -1.2816, 0.99: -2.3263, 0.1: 1.2816}.get(probability)
+        if z is not None:
+            root = (-z + sqrt(z * z + 4 * (n - 0.5))) / 2
+            return root * root
+
+    def survival(mu: float) -> float:   # P(N >= n)
+        cdf = sum(exp(k * log(mu) - mu - lgamma(k + 1)) for k in range(n))
+        return 1 - cdf
+
+    lo, hi = 0.0, max(10.0, 4.0 * n)
+    while survival(hi) < probability:
+        hi *= 2
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if survival(mid) < probability:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+def turnover_count(lam: np.ndarray, probability: float) -> np.ndarray:
+    """Number of turnovers n reached with the given probability for Poisson means lam, interpolated smoothly
+    between integer n as in Gault et al. (1974, Fig. 2); below the lambda of n = 1 the result is < 1."""
+    if probability not in _TURNOVER_TABLE:
+        ns = sorted(set(list(range(1, 11)) + [int(round(10 ** e)) for e in np.arange(1.0, 6.01, 0.125)]))
+        lams = np.array([poisson_lambda_for_count(n, probability) for n in ns])
+        _TURNOVER_TABLE[probability] = (np.log(lams), np.log(np.array(ns, dtype=float)))
+    log_lams, log_ns = _TURNOVER_TABLE[probability]
+    lam = np.asarray(lam, dtype=float)
+    out = np.zeros_like(lam)
+    ok = lam > 0
+    log_lam = np.log(np.where(ok, lam, 1.0))
+    out[ok] = np.exp(np.interp(log_lam[ok], log_lams, log_ns))
+    # below n = 1 continue with the slope of the first segment so the curve leaves the plot smoothly
+    small = ok & (log_lam < log_lams[0])
+    slope = (log_ns[1] - log_ns[0]) / (log_lams[1] - log_lams[0])
+    out[small] = np.exp(log_ns[0] + slope * (log_lam[small] - log_lams[0]))
+    large = ok & (log_lam > log_lams[-1])
+    out[large] = lam[large]
+    return out
     return out
 
 
@@ -930,7 +960,7 @@ def render_figure(run_id: str, name: str, scale: int = 1) -> Path:
     with PLOT_LOCK:
         fig = themed_figure(WIDE_FIG_SIZE, dpi=MAP_DPI * scale)
         if name == "turnover":
-            axes = [fig.add_axes((0.09, 0.19, 0.86, 0.69))]
+            axes = [fig.add_axes((0.075, 0.19, 0.66, 0.60))]
         else:
             axes = [fig.add_axes((0.075, 0.19, 0.395, 0.69)), fig.add_axes((0.585, 0.19, 0.395, 0.69))]
         for ax in axes:
@@ -996,45 +1026,71 @@ def render_figure(run_id: str, name: str, scale: int = 1) -> Path:
             axes[1].set_xlabel("crater diameter [m]"); axes[1].set_ylabel("count per √2 bin"); axes[1].set_title("Counts per √2 bin", fontsize=10)
             legend = axes[0].legend(loc="upper right", **legend_kwargs); legend.get_frame().set_alpha(0.9)
 
-        else:   # turnover: Gault et al. (1974), Fig. 12
-            # Expected number of times a point was excavated to at least depth d by the primaries formed so
-            # far: n(d) = (1/A) sum over craters of the cavity area deeper than d, pi R^2 (1 - d/h) for a
-            # paraboloid of depth h = depthToDiameter D. The flux is constant, so the population at time t
-            # is the final one scaled by t / T; the 99% curves are the Poisson quantiles of that mean.
+        else:   # turnover: Gault et al. (1974), Eqs. 12-15 and Fig. 9
+            # A point is turned over to depth d = D_a / 8 when a crater of diameter >= D_a forms within
+            # c D_a / 2 of it (c = 0.75, craters of depth D_a / 4 excavating only their upper half):
+            # lambda(d, t) = N(>= 8 d) pi (c 4 d)^2 t, with N the cumulative number of craters per unit
+            # area and time. The flux is constant, so N at any age follows from the run's population by
+            # scaling with t / T. The curves are the number of turnovers reached with 50% and 99%
+            # probability, i.e. Poisson quantiles of lambda (Gault's Table 1 and Fig. 2).
             bins, counts = out.histogram("craters")
             end_time = float(p["endTime"])
-            depth_ratio = float(p.get("depthToDiameter", 0.2))
-            centers = np.sqrt(bins[:-1] * bins[1:])
-            radii = centers / 2
-            depths_c = depth_ratio * centers
             area_m2 = area_km2 * 1e6
             weights = counts[:-1].astype(float)
-            dmin = max(depth_ratio * centers[weights > 0].min() * 0.05, 1e-4) if weights.any() else 1e-3
-            dmax = depth_ratio * centers[weights > 0].max() if weights.any() else 1.0
-            d = np.logspace(np.log10(dmin), np.log10(dmax), 200)
-            n_final = np.array([np.sum(weights * np.pi * radii ** 2 * np.clip(1 - dd / depths_c, 0, None)) for dd in d]) / area_m2
-            times = [t for t in [end_time * f for f in (1e-4, 1e-3, 1e-2, 0.1, 1.0)] if t >= 1e-3]
-            colors = ["#79a6ff", "#7ed0a8", "#e5c76b", "#f08a7a", THEME["accent"]][-len(times):]
-            plotted_min, plotted_max = np.inf, 0.0
-            for t, color in zip(times, colors):
-                mean = n_final * t / end_time
-                mask = mean > 1e-4
-                if not mask.any():
-                    continue
-                axes[0].plot(d[mask], mean[mask], color=color, lw=1.6, label="{:g} Ma".format(t))
-                plotted_min, plotted_max = min(plotted_min, mean[mask].min()), max(plotted_max, mean[mask].max())
-                q99 = poisson_lower_quantile(mean)
-                mask99 = q99 >= 1
-                if mask99.any():
-                    axes[0].plot(d[mask99], q99[mask99], color=color, lw=1.1, ls="--")
-            axes[0].plot([], [], color=THEME["ink"], lw=1.6, label="expected (≈50%)"); axes[0].plot([], [], color=THEME["ink"], lw=1.1, ls="--", label="with 99% probability")
-            if np.isfinite(plotted_min) and plotted_max > 0:
-                axes[0].set_ylim(10 ** np.floor(np.log10(max(plotted_min, 1e-4))), 10 ** np.ceil(np.log10(plotted_max * 1.5)))
-            axes[0].axhline(1, color=THEME["muted"], lw=0.8, ls=":")
-            axes[0].text(d[0] * 1.1, 1.15, "turned over once", fontsize=6.5, color=THEME["muted"])
+            cumulative = np.cumsum(weights[::-1])[::-1]   # craters with D >= bins[i]
+            edges = bins[:-1]
+            nonzero = weights > 0
+            if nonzero.any():
+                first, last = int(np.argmax(nonzero)), len(weights) - 1 - int(np.argmax(nonzero[::-1]))
+                d_min, d_max = edges[first] / 8, bins[last + 1] / 8
+                d = np.logspace(np.log10(d_min), np.log10(d_max), 300)
+                keep = cumulative > 0
+                n_final = np.exp(np.interp(np.log(8 * d), np.log(edges[keep]), np.log(cumulative[keep]))) / area_m2
+                n_final[8 * d > bins[last + 1]] = 0.0
+                ages_ma = [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 4600.0]   # Gault's 10^4 ... 10^9 and 4.6 x 10^9 yr
+                if not any(abs(np.log10(a / end_time)) < 0.15 for a in ages_ma):
+                    ages_ma = sorted(ages_ma + [end_time])
+                cmap = plt.get_cmap("viridis")
+                n_max, lam_min = 1.0, np.inf
+                for k, t in enumerate(ages_ma):
+                    lam = n_final * t / end_time * np.pi * (0.75 * 4 * d) ** 2
+                    shown = lam > 1e-3
+                    if not shown.any():
+                        continue
+                    is_run = abs(t - end_time) < 1e-9 * end_time
+                    color = cmap(0.25 + 0.75 * k / max(len(ages_ma) - 1, 1))
+                    years = t * 1e6
+                    exponent = int(np.floor(np.log10(years)))
+                    mantissa = years / 10 ** exponent
+                    label = ("{:g}×10$^{{{}}}$ yr".format(round(mantissa, 2), exponent) if abs(mantissa - 1) > 0.01 else "10$^{{{}}}$ yr".format(exponent)) + (" (run)" if is_run else "")
+                    lw = 2.0 if is_run else 1.4
+                    axes[0].plot(d[shown], lam[shown], color=color, lw=lw * 0.6, ls=":", alpha=0.9, label=label)
+                    lam_min = min(lam_min, lam[shown].min())
+                    n50, n99 = turnover_count(lam, 0.5), turnover_count(lam, 0.99)
+                    if (n50 >= 1).any():
+                        axes[0].plot(d[n50 >= 1], n50[n50 >= 1], color=color, lw=lw)
+                        n_max = max(n_max, n50.max())
+                    if (n99 >= 1).any():
+                        axes[0].plot(d[n99 >= 1], n99[n99 >= 1], color=color, lw=lw * 0.75, ls="--")
+                axes[0].plot([], [], color=THEME["ink"], lw=1.4, label="n at 50% probability"); axes[0].plot([], [], color=THEME["ink"], lw=1.0, ls="--", label="n at 99% probability")
+                axes[0].plot([], [], color=THEME["ink"], lw=0.9, ls=":", label="expected number λ")
+                axes[0].axhline(1, color=THEME["muted"], lw=0.7, ls="-", alpha=0.6)
+                axes[0].set_xlim(d_min, d_max)
+                low = 10 ** np.floor(np.log10(max(lam_min, 1e-3))) if np.isfinite(lam_min) else 1e-2
+                axes[0].set_ylim(low, 10 ** np.ceil(np.log10(n_max * 1.2)))
+                smallest = edges[first]
+                axes[0].text(0.01, 0.02, "smallest crater in the run {:.3g} m, so no turnover below {:.3g} m is modelled".format(smallest, smallest / 8),
+                             transform=axes[0].transAxes, fontsize=6.5, color=THEME["muted"])
+                secondary = axes[0].secondary_xaxis("top", functions=(lambda x: 8 * x, lambda x: x / 8))
+                secondary.set_xlabel("crater diameter $D_a$ = 8 × depth [m]", fontsize=8, color=THEME["muted"], labelpad=4)
+                secondary.tick_params(colors=THEME["muted"], labelsize=7, which="both")
+                for spine in secondary.spines.values():
+                    spine.set_color(THEME["grid"])
+            else:
+                axes[0].text(0.5, 0.5, "no craters", transform=axes[0].transAxes, ha="center", color=THEME["muted"])
             axes[0].set_xlabel("depth of turnover [m]"); axes[0].set_ylabel("number of times turned over")
-            axes[0].set_title("Regolith turnover by the primaries (after Gault et al. 1974, Fig. 12)", fontsize=10)
-            legend = axes[0].legend(ncol=2, **legend_kwargs); legend.get_frame().set_alpha(0.9)
+            axes[0].set_title("Regolith turnover, Gault et al. (1974) method, constant flux (compare their Fig. 9)", fontsize=10)
+            legend = axes[0].legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), borderaxespad=0, **legend_kwargs); legend.get_frame().set_alpha(0.9)
         atomic_savefig(fig, target)
         plt.close(fig)
     return target
