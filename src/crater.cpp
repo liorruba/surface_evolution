@@ -31,14 +31,14 @@ Crater::Crater(Impactor impactor, double _xLocation, double _yLocation, Layer _e
         initializeFromImpactor(impactor);
 }
 
-// Fourth constructor: predetermined crater radius. This type of crater has no ejecta.
-Crater::Crater(double _xLocation, double _yLocation, double _finalRadius) : ejectedMass(Layer(0,0,0,0)), ejectaDistance(), ejectaThickness() {
+// Fourth constructor: predetermined crater radius and depth/diameter ratio. This type of crater has no ejecta.
+Crater::Crater(double _xLocation, double _yLocation, double _finalRadius, double depthRatio) : ejectedMass(Layer(0,0,0,0)), ejectaDistance(), ejectaThickness() {
         xLocation = _xLocation;
         yLocation = _yLocation;
         finalRadius = _finalRadius;
         transientRadius = finalRadius / 1.18;
         transientRadiusGravity = transientRadius;
-        finalDepth = depthToDiameter * 2 * finalRadius;
+        finalDepth = depthRatio * 2 * finalRadius;
         finalDepth_init = finalDepth;
         rimHeight = rimToDiameter * 2 * finalRadius;
         floorElevation = 0;
@@ -56,8 +56,9 @@ void Crater::initializeFromImpactor(const Impactor &impactor) {
         floorElevation = 0;
         calcEjectaThickness(impactor);
 
-        // Number of secondaries
-        numberOfSecondaries = (int) (pow(0.05 * finalRadius, slope_secondaries) * pow(resolution, -slope_secondaries));
+        // Number of secondaries larger than one pixel: N(>r) = (r_max / r)^slope with r_max a fraction of the primary radius
+        const double largestSecondaryRadius = secondaryLargestFraction * finalRadius;
+        numberOfSecondaries = largestSecondaryRadius > resolution ? (int) pow(largestSecondaryRadius / resolution, slope_secondaries) : 0;
 }
 
 ///////////////////

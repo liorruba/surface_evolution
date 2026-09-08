@@ -27,6 +27,8 @@ extern double ejectaVolatileRetention; // The fraction of volatiles that remain 
 extern double ejectaSootRetention; // The fraction of soot that remain in the crater ejecta
 extern double minimumLayerThickness; // Deposits thinner than this (m) are mixed into the surface layer
 extern double slope_secondaries; // Slope of the secondary crater size distribution
+extern double secondaryLargestFraction; // Largest secondary radius as a fraction of the primary radius
+extern double secondaryDepthToDiameter; // Depth to diameter ratio of secondary craters
 extern double iceDensity; // The density of ice
 extern double regolithDensity; // The density of regolith
 extern double sootDensity; // The density of "soot"

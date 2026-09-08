@@ -52,6 +52,7 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 import regolit  # noqa: E402
+from regolit import scaling  # noqa: E402
 from regolit.io import RegolitOutput, Subsurface, read_config, read_layers  # noqa: E402
 
 # ----------------------------------------------------------------------------------------------
@@ -116,26 +117,23 @@ PARAMETERS: List[Dict] = [
     dict(group="Time", name="randomSeed", label="Random seed", unit="", min=0, max=2**31 - 1, kind="int",
          description="Seed of the impactor sequence."),
     dict(group="Impactors", name="minimumImpactorDiameter", label="Minimum impactor diameter", unit="m", min=0.02, max=50, kind="number",
-         description="Smallest impactor drawn from the power-law distribution."),
-    dict(group="Impactors", name="slope_b", label="Size-distribution slope b", unit="", min=1.2, max=4.5, kind="number",
-         description="Cumulative slope: N(>D) ~ D^-b."),
-    dict(group="Impactors", name="fluxConstant_c", label="Flux constant c", unit="m^-2 Ma^-1", min=1e-12, max=1e-3, kind="number",
-         description="N(>1 m) per m^2 per Ma at Earth."),
-    dict(group="Impactors", name="earthFluxRatioCoefficient", label="Body/Earth flux ratio", unit="", min=0.01, max=50, kind="number",
-         description="Scales the flux to the target body."),
+         description="Smallest impactor simulated."),
+    dict(group="Impactors", name="fluxConstant_c", label="Flux constant c", unit="m^-2 Ma^-1", min=1e-14, max=1e-2, kind="number", auto="production_function",
+         description="N(>1 m) impactors per m^2 per Ma. Set by the production function unless 'Power law (manual)' is chosen."),
+    dict(group="Impactors", name="slope_b", label="Slope b", unit="", min=1.2, max=4.5, kind="number", auto="production_function",
+         description="Cumulative slope: N(>d) ~ d^-b. Set by the production function unless manual."),
+    dict(group="Impactors", name="earthFluxRatioCoefficient", label="Flux multiplier", unit="", min=0.001, max=100, kind="number",
+         description="Scales the production function, e.g. to another body or epoch (1 = as published)."),
     dict(group="Impactors", name="impactorDensity", label="Impactor density", unit="kg/m^3", min=300, max=9000, kind="number"),
-    dict(group="Impactors", name="meanImpactVelocity", label="Impact velocity", unit="m/s", min=500, max=80000, kind="number"),
-    dict(group="Impactors", name="isEmplaceSecondaries", label="Secondary craters", unit="", min=0, max=1, kind="bool",
-         description="Form secondary craters around each primary."),
-    dict(group="Impactors", name="slope_secondaries", label="Secondaries slope", unit="", min=1.5, max=8, kind="number"),
-    dict(group="Target", name="g", label="Gravity", unit="m/s^2", min=0.01, max=30, kind="number"),
-    dict(group="Target", name="targetDensity", label="Target density", unit="kg/m^3", min=300, max=6000, kind="number"),
+    dict(group="Target", name="g", label="Gravity", unit="m/s^2", min=0.01, max=30, kind="number", body=True),
+    dict(group="Target", name="meanImpactVelocity", label="Impact velocity", unit="m/s", min=500, max=80000, kind="number", body=True),
+    dict(group="Target", name="targetDensity", label="Target density", unit="kg/m^3", min=300, max=6000, kind="number", body=True),
     dict(group="Target", name="k1", label="Scaling constant k1", unit="", min=0.01, max=2, kind="number",
          description="Holsapple (1993) crater-volume scaling constant."),
     dict(group="Target", name="mu", label="Scaling exponent mu", unit="", min=0.3, max=0.7, kind="number"),
     dict(group="Target", name="Ybar", label="Effective strength", unit="Pa", min=0, max=1e9, kind="number"),
     dict(group="Target", name="angleOfRepose", label="Angle of repose", unit="deg", min=5, max=80, kind="number",
-         description="Slopes steeper than this fail at every output step."),
+         description="Slopes steeper than this fail at every output step. Not changed by the body preset."),
     dict(group="Craters", name="craterProfileType", label="Cavity shape", unit="", min=1, max=2, kind="choice",
          choices={"1": "parabolic", "2": "bowl (spherical cap)"}),
     dict(group="Craters", name="depthToDiameter", label="Depth / diameter", unit="", min=0.02, max=0.5, kind="number"),
@@ -148,7 +146,16 @@ PARAMETERS: List[Dict] = [
     dict(group="Craters", name="ejectaSootRetention", label="Soot retained in ejecta", unit="fraction", min=0, max=1, kind="number"),
     dict(group="Craters", name="minimumLayerThickness", label="Minimum layer thickness", unit="m", min=0, max=1, kind="number",
          description="Thinner deposits are mixed into the surface layer."),
-    dict(group="Subsurface", name="initialThickness", label="Basement thickness", unit="m", min=1, max=10000, kind="number"),
+    dict(group="Secondary craters", name="isEmplaceSecondaries", label="Secondary craters", unit="", min=0, max=1, kind="bool", toggle=True,
+         description="Form secondary craters within four radii of every primary."),
+    dict(group="Secondary craters", name="secondaryLargestFraction", label="Largest secondary / primary radius", unit="", min=0.005, max=0.5, kind="number",
+         description="Radius of the largest secondary as a fraction of the primary radius (typically about 0.05)."),
+    dict(group="Secondary craters", name="slope_secondaries", label="Size-distribution slope", unit="", min=1.5, max=8, kind="number",
+         description="N(>r) = (r_max / r)^slope between one pixel and the largest secondary."),
+    dict(group="Secondary craters", name="secondaryDepthToDiameter", label="Depth / diameter", unit="", min=0.02, max=0.5, kind="number",
+         description="Secondaries are shallower than primaries."),
+    dict(group="Subsurface", name="initialThickness", label="Basement thickness", unit="m", min=1, max=10000, kind="number", auto="basement",
+         description="Automatic: the initial layers plus three times the depth of the largest expected crater. Untick to override."),
     dict(group="Subsurface", name="depthToIntegrate", label="Integration depth", unit="m", min=0.005, max=100, kind="number",
          description="Depth of the integrated-composition maps."),
     dict(group="Subsurface", name="iceEmplacementInterval", label="Ice deposition interval", unit="Ma", min=0.01, max=4500, kind="number"),
@@ -202,8 +209,64 @@ SUBSURFACE_CACHE_SIZE = 4
 
 
 class RunRequest(BaseModel):
-    parameters: Dict[str, float] = Field(default_factory=dict)
+    parameters: Dict[str, object] = Field(default_factory=dict)   # coerced and range-checked in validate() / estimate_for()
     layers: Optional[List[List[float]]] = None   # rows of (class, thickness, regolith, ice, soot), bottom-up
+    presets: Optional[Dict[str, object]] = None  # UI choices kept with the run: body, production_function, basement_auto
+
+
+PRESET_KEYS = {"body": str, "production_function": str, "basement_auto": bool}
+
+
+def clean_presets(presets: Optional[Dict[str, object]]) -> Dict[str, object]:
+    out: Dict[str, object] = {}
+    for key, kind in PRESET_KEYS.items():
+        if presets and key in presets:
+            value = presets[key]
+            if kind is bool:
+                out[key] = bool(value)
+            elif isinstance(value, str) and len(value) <= 40:
+                out[key] = value
+    return out
+
+
+def layers_total_thickness(rows: List[List[float]]) -> float:
+    """Thickness of the initial layer stack the model will use (the second class when there are several, else the first)."""
+    blocks: List[List[List[float]]] = []
+    previous = None
+    for row in rows:
+        if row[0] != previous:
+            blocks.append([])
+            previous = row[0]
+        blocks[-1].append(row)
+    block = blocks[1] if len(blocks) > 1 else blocks[0]
+    return float(sum(r[1] for r in block))
+
+
+def estimate_for(request: RunRequest) -> Dict:
+    """Derived quantities for a (possibly half-edited) parameter set: values are coerced into range, never rejected."""
+    effective = default_parameters()
+    for name, value in request.parameters.items():
+        spec = PARAMETER_INDEX.get(name)
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            continue
+        if spec is None or not math.isfinite(value):
+            continue
+        effective[name] = min(max(value, spec["min"]), spec["max"])
+    rows = request.layers if request.layers else default_layers()
+    try:
+        total = layers_total_thickness([[float(v) for v in r] for r in rows if len(r) == 5])
+    except (TypeError, ValueError, IndexError):
+        total = layers_total_thickness(default_layers())
+    presets = clean_presets(request.presets)
+    key = presets.get("production_function", "power_law")
+    if key not in scaling.PRODUCTION_FUNCTIONS or not scaling.PRODUCTION_FUNCTIONS[key].get("available"):
+        key = "power_law"
+    try:
+        return scaling.estimate(effective, total, key)
+    except (ValueError, ZeroDivisionError, OverflowError) as error:
+        raise HTTPException(400, "cannot estimate: {}".format(error))
 
 
 # ----------------------------------------------------------------------------------------------
@@ -309,7 +372,7 @@ def prune_runs() -> None:
         total -= sizes[old]
 
 
-def execute(run_id: str, overrides: Dict[str, float], layers: Optional[List[List[float]]]) -> Dict:
+def execute(run_id: str, overrides: Dict[str, float], layers: Optional[List[List[float]]], presets: Optional[Dict[str, object]] = None) -> Dict:
     """Run the model (blocking), compact the layer stacks and write summary.json."""
     workdir = RUNS_DIR / run_id
     started = time.time()
@@ -336,6 +399,7 @@ def execute(run_id: str, overrides: Dict[str, float], layers: Optional[List[List
         "duration_s": round(time.time() - started, 2),
         "parameters": {p["name"]: out.config.get(p["name"]) for p in PARAMETERS},
         "layers": layers if layers is not None else default_layers(),
+        "presets": clean_presets(presets),
         "steps": out.steps,
         "times": [float(t) for t in out.times],
         "grid": out.n,
@@ -669,11 +733,21 @@ async def meta() -> Dict:
         "parameters": PARAMETERS,
         "defaults": default_parameters(),
         "layers": default_layers(),
+        "bodies": scaling.BODIES,
+        "body_fields": list(scaling.BODY_FIELDS),
+        "production_functions": {k: {"label": v["label"], "available": v["available"], "reference": v["reference"]} for k, v in scaling.PRODUCTION_FUNCTIONS.items()},
+        "default_presets": {"body": "moon", "production_function": "neukum", "basement_auto": True},
         "map_kinds": {k: v[0] for k, v in MAP_KINDS.items()},
         "default_kind": "shaded_relief",
         "map_geometry": map_geometry(),
         "limits": {"max_grid_cells": MAX_GRID_CELLS, "max_steps": MAX_STEPS, "max_output_mb": MAX_OUTPUT_BYTES // 2**20, "max_impacts": MAX_IMPACTS, "max_layer_rows": MAX_LAYER_ROWS},
     }
+
+
+@app.post("/api/estimate")
+async def post_estimate(request: RunRequest) -> Dict:
+    """Fitted flux law, expected impacts, largest crater and suggested basement for a parameter set (no run)."""
+    return estimate_for(request)
 
 
 @app.get("/api/runs")
@@ -694,7 +768,7 @@ async def create_run(request: RunRequest) -> Dict:
             WAITING["count"] -= 1
             acquired = True
             try:
-                summary = await asyncio.to_thread(execute, run_id, overrides, layers)
+                summary = await asyncio.to_thread(execute, run_id, overrides, layers, request.presets)
             except Exception as error:  # model failure: report the message, drop the directory
                 shutil.rmtree(RUNS_DIR / run_id, ignore_errors=True)
                 raise HTTPException(500, "the model run failed: {}".format(str(error)[:800]))

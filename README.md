@@ -7,7 +7,9 @@ and adds an efficient 3-D description of the subsurface using layers.
 1. Requirements: a C++17 compiler (g++ or clang++) and GNU make. There are no external dependencies.
 2. To compile, simply run `make` in the `REGOLIT` directory (`make debug` builds without optimization and with debug symbols).
 3. To run, execute `./build/apps/regolit_main.run` from the `REGOLIT` directory (it reads `config/` and writes `output/` and `log/`).
-4. The output will be saved in the `output` directory: binary files containing the surface elevation, surface composition and subsurface layers, and `existing_craters.txt`, the list of craters still visible at the end of the run.
+4. Secondary craters (`isEmplaceSecondaries 1`) follow `N(>r) = (r_max / r)^slope_secondaries` between
+   one pixel and `secondaryLargestFraction` of the primary radius, with their own `secondaryDepthToDiameter`.
+5. The output will be saved in the `output` directory: binary files containing the surface elevation, surface composition and subsurface layers, and `existing_craters.txt`, the list of craters still visible at the end of the run.
 
 ### Debugging
 `make debug` builds `build/apps/regolit_main_debug.run` with AddressSanitizer and

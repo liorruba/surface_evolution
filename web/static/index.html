@@ -118,6 +118,14 @@
   table.layers td{padding:3px 6px}
   table.layers input{width:100%;background:var(--shell);border:1px solid var(--edge);border-radius:6px;padding:4px 6px;font-family:var(--mono);font-size:12px}
   .composer .foot{display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap}
+  .estimate{margin-top:14px;padding:10px 14px;background:var(--raise);border:1px solid var(--edge-soft);border-radius:10px;font-size:12.5px;color:var(--dim);line-height:1.6}
+  .estimate b{color:var(--ink);font-family:var(--mono);font-weight:600}
+  .row.preset{grid-template-columns:1fr 200px}
+  .row.preset select{font-family:var(--sans)}
+  .row .auto{display:inline-flex;gap:5px;align-items:center;font-size:11.5px;color:var(--dim);margin-top:3px}
+  .row input:disabled,.row select:disabled{opacity:.55}
+  .row.dep.off{display:none}
+  .ref{color:var(--faint);font-size:11.5px;margin-top:4px}
   .msg{font-size:13px;color:var(--dim)}
   .msg.error{color:var(--alert)}
 
@@ -163,9 +171,13 @@
         <table class="layers"><thead><tr><th>class</th><th>thickness [m]</th><th>regolith</th><th>ice</th><th>soot</th><th></th></tr></thead><tbody id="layers"></tbody></table>
         <button type="button" class="ghost" id="addLayer" style="margin-top:8px">+ layer</button>
       </div>
+      <div class="estimate" id="estimate"></div>
       <div class="foot">
         <button class="btn primary" id="runBtn">Run model</button>
         <button class="btn" id="resetBtn">Reset defaults</button>
+        <button class="btn" id="saveBtn" title="download the parameters, layers and presets as a JSON file">Save settings</button>
+        <button class="btn" id="loadBtn" title="load a settings file saved from this page">Load settings</button>
+        <input type="file" id="loadFile" accept="application/json,.json" class="hide">
         <button class="btn" id="cancelBtn">Cancel</button>
         <span class="msg" id="msg"></span>
       </div>
@@ -241,7 +253,8 @@
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const S = { meta: null, runs: [], current: null, kind: "shaded_relief", species: "soot", step: 0, axis: "x", at: 0, depth: 2, az: 315, alt: 25, playing: null, sectionTimer: null };
+  const S = { meta: null, runs: [], current: null, kind: "shaded_relief", species: "soot", step: 0, axis: "x", at: 0, depth: 2, az: 315, alt: 25, playing: null, sectionTimer: null,
+              presets: { body: "moon", production_function: "neukum", basement_auto: true }, estimateTimer: null, estimateSeq: 0 };
 
   // ---------- helpers ----------
   function fmt(v, digits) {
@@ -297,13 +310,18 @@
       const box = document.createElement("div");
       box.className = "group";
       box.innerHTML = '<span class="eyebrow">' + group + "</span>";
+      if (group === "Target") box.appendChild(presetRow("body", "Target body", "Sets gravity, impact velocity and target density; editing one of them switches to Custom.",
+        Object.entries(S.meta.bodies).map(([k, v]) => [k, v.label])));
+      if (group === "Impactors") box.appendChild(presetRow("pf", "Production function", "Crater production function converted to an impactor flux through the crater scaling and fitted by a power law over the run's impactor sizes.",
+        Object.entries(S.meta.production_functions).map(([k, v]) => [k, v.label + (v.available ? "" : " (not available)"), !v.available])));
       params.forEach(p => {
         const row = document.createElement("div");
-        row.className = "row";
+        row.className = "row" + (group === "Secondary craters" && !p.toggle ? " dep" : "");
         const label = document.createElement("label");
         label.htmlFor = "p_" + p.name;
         label.title = p.description || "";
         label.innerHTML = p.label + (p.unit ? '<span class="unit">' + p.unit + "</span>" : "") + (p.description ? '<span class="help">' + p.description + "</span>" : "");
+        if (p.auto === "basement") label.innerHTML += '<span class="auto"><input type="checkbox" id="basementAuto" checked> automatic</span>';
         let input;
         if (p.kind === "choice" || p.kind === "bool") {
           input = document.createElement("select");
@@ -315,11 +333,57 @@
           input.title = "between " + p.min + " and " + p.max;
         }
         input.id = "p_" + p.name;
+        input.addEventListener("input", () => onParameterEdited(p));
+        input.addEventListener("change", () => onParameterEdited(p));
         row.appendChild(label); row.appendChild(input);
         box.appendChild(row);
       });
+      if (group === "Impactors") { const ref = document.createElement("div"); ref.className = "ref"; ref.id = "pfRef"; box.appendChild(ref); }
       container.appendChild(box);
     }
+    $("body").onchange = () => { S.presets.body = $("body").value; applyBody(); scheduleEstimate(); };
+    $("pf").onchange = () => { S.presets.production_function = $("pf").value; applyProductionFunction(); scheduleEstimate(); };
+    $("basementAuto").onchange = () => { S.presets.basement_auto = $("basementAuto").checked; applyBasementMode(); scheduleEstimate(); };
+    $("layers").addEventListener("input", scheduleEstimate);
+  }
+  function presetRow(id, label, help, options) {
+    const row = document.createElement("div");
+    row.className = "row preset";
+    row.innerHTML = "<label for='" + id + "'>" + label + "<span class='help'>" + help + "</span></label>";
+    const select = document.createElement("select"); select.id = id;
+    options.forEach(([value, text, disabled]) => { const o = document.createElement("option"); o.value = value; o.textContent = text; if (disabled) o.disabled = true; select.appendChild(o); });
+    row.appendChild(select);
+    return row;
+  }
+  function onParameterEdited(p) {
+    if (p.body && S.presets.body !== "custom") { S.presets.body = "custom"; $("body").value = "custom"; }
+    if (p.toggle) applySecondaries();
+    scheduleEstimate();
+  }
+  function applyPresets() {
+    $("body").value = S.presets.body in S.meta.bodies ? S.presets.body : "custom";
+    $("pf").value = S.presets.production_function in S.meta.production_functions ? S.presets.production_function : "power_law";
+    if ($("pf").selectedOptions[0] && $("pf").selectedOptions[0].disabled) { $("pf").value = "power_law"; S.presets.production_function = "power_law"; }
+    $("basementAuto").checked = !!S.presets.basement_auto;
+    applyBody(); applyProductionFunction(); applyBasementMode(); applySecondaries();
+  }
+  // A body preset always writes its values; a saved file or run with a body other than "custom" holds those same values.
+  function applyBody() {
+    const body = S.meta.bodies[S.presets.body];
+    if (body && S.presets.body !== "custom") {
+      S.meta.body_fields.forEach(f => { if (body[f] !== undefined) $("p_" + f).value = fmt(body[f]); });
+    }
+  }
+  function applyProductionFunction() {
+    const manual = S.presets.production_function === "power_law";
+    S.meta.parameters.filter(p => p.auto === "production_function").forEach(p => { $("p_" + p.name).disabled = !manual; });
+    const pf = S.meta.production_functions[S.presets.production_function];
+    $("pfRef").textContent = pf ? pf.reference : "";
+  }
+  function applyBasementMode() { $("p_initialThickness").disabled = !!S.presets.basement_auto; }
+  function applySecondaries() {
+    const on = $("p_isEmplaceSecondaries").value === "1";
+    document.querySelectorAll(".row.dep").forEach(r => r.classList.toggle("off", !on));
   }
   function setParameters(values) {
     S.meta.parameters.forEach(p => {
@@ -328,6 +392,47 @@
       input.value = (p.kind === "choice" || p.kind === "bool" || p.kind === "int") ? String(Math.round(v)) : fmt(v);
       input.classList.remove("invalid");
     });
+  }
+  function currentSettings() {
+    return { version: 1, saved: new Date().toISOString(), parameters: readParameters(false), layers: readLayers(), presets: Object.assign({}, S.presets) };
+  }
+  function applySettings(settings) {
+    if (!settings || typeof settings !== "object" || !settings.parameters) throw new Error("not a REGOLIT settings file");
+    S.presets = Object.assign({ body: "custom", production_function: "power_law", basement_auto: true }, settings.presets || {});
+    setParameters(settings.parameters); setLayers(settings.layers && settings.layers.length ? settings.layers : S.meta.layers);
+    applyPresets(); scheduleEstimate();
+  }
+  function saveSettings() {
+    let settings;
+    try { settings = currentSettings(); } catch (e) { setMsg(e.message, true); return; }
+    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = "regolit-settings-" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".json";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    setMsg("Settings saved as " + a.download + ".");
+  }
+  function loadSettingsFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => { try { applySettings(JSON.parse(reader.result)); setMsg("Loaded " + file.name + "."); } catch (e) { setMsg("Cannot load settings: " + e.message, true); } };
+    reader.readAsText(file);
+  }
+  function scheduleEstimate() {
+    clearTimeout(S.estimateTimer);
+    S.estimateTimer = setTimeout(runEstimate, 250);
+  }
+  async function runEstimate() {
+    let body;
+    try { body = { parameters: readParameters(false), layers: readLayers(), presets: S.presets }; } catch (e) { $("estimate").textContent = e.message; return; }
+    const seq = ++S.estimateSeq;
+    try {
+      const e = await api("/api/estimate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (seq !== S.estimateSeq) return;
+      if (S.presets.production_function !== "power_law") { $("p_fluxConstant_c").value = fmt(e.fluxConstant_c, 3); $("p_slope_b").value = fmt(Math.round(e.slope_b * 1000) / 1000); }
+      if (S.presets.basement_auto) $("p_initialThickness").value = fmt(e.suggested_basement_m);
+      const r1 = (v, d) => fmt(Math.round(v * Math.pow(10, d)) / Math.pow(10, d));
+      $("estimate").innerHTML = "Expected <b>" + Math.round(e.expected_impacts).toLocaleString() + "</b> impacts &middot; largest impactor <b>" + r1(e.largest_impactor_m, 2) + " m</b> &rarr; crater <b>" + r1(e.largest_crater_diameter_m, 1) + " m</b> across, <b>" + r1(e.largest_crater_depth_m, 2) + " m</b> deep &middot; smallest crater <b>" + r1(e.smallest_crater_diameter_m, 2) + " m</b> &middot; initial layers <b>" + r1(e.layers_total_m, 2) + " m</b>, basement <b>" + r1(e.suggested_basement_m, 1) + " m</b>" +
+        (e.fit_range_m ? " &middot; power-law fit of the production function over impactors " + r1(e.fit_range_m[0], 2) + "&ndash;" + r1(e.fit_range_m[1], 2) + " m: c = <b>" + fmt(e.fluxConstant_c, 3) + "</b>, b = <b>" + r1(e.slope_b, 3) + "</b>" : "");
+    } catch (e) { if (seq === S.estimateSeq) $("estimate").textContent = "Estimate unavailable: " + e.message; }
   }
   function layerRow(values) {
     const tr = document.createElement("tr");
@@ -346,26 +451,28 @@
     if (!rows.length) throw new Error("at least one layer is required");
     return rows;
   }
-  function readParameters() {
+  function readParameters(strict) {
     const out = {}; let bad = null;
     S.meta.parameters.forEach(p => {
       const input = $("p_" + p.name); const v = parseFloat(input.value);
       const ok = Number.isFinite(v) && v >= p.min && v <= p.max;
-      input.classList.toggle("invalid", !ok);
+      if (strict !== false) input.classList.toggle("invalid", !ok);
       if (!ok && !bad) bad = p.label + " must be between " + p.min + " and " + p.max;
-      out[p.name] = v;
+      if (Number.isFinite(v)) out[p.name] = v;
     });
-    if (bad) throw new Error(bad);
+    if (bad && strict !== false) throw new Error(bad);
     return out;
   }
-  function openComposer(values, layers) {
+  function openComposer(values, layers, presets) {
+    S.presets = Object.assign({}, S.meta.default_presets, presets || {});
     setParameters(values || {}); setLayers(layers || S.meta.layers); setMsg("");
+    applyPresets(); scheduleEstimate();
     document.querySelectorAll(".card").forEach(c => c.classList.remove("on"));
     show("composer"); window.scrollTo(0, 0);
   }
   async function submitRun() {
     let body;
-    try { body = { parameters: readParameters(), layers: readLayers() }; } catch (e) { setMsg(e.message, true); return; }
+    try { body = { parameters: readParameters(), layers: readLayers(), presets: S.presets }; } catch (e) { setMsg(e.message, true); return; }
     $("runBtn").disabled = true; setMsg("Running…");
     const t0 = performance.now();
     try {
@@ -485,7 +592,11 @@
   }
   function refreshHistograms() { $("histograms").src = "/api/runs/" + S.current.id + "/histograms.png"; }
   function renderSetup(s) {
-    $("setupTable").innerHTML = S.meta.parameters.map(p => "<tr><td>" + p.label + (p.unit ? ' <span class="unit">[' + p.unit + "]</span>" : "") + "</td><td>" +
+    const presets = s.presets || {};
+    const presetRows = "<tr><td>Target body</td><td>" + ((S.meta.bodies[presets.body] || {}).label || "custom") + "</td></tr>" +
+      "<tr><td>Production function</td><td>" + ((S.meta.production_functions[presets.production_function] || {}).label || "power law (manual)") + "</td></tr>" +
+      "<tr><td>Basement thickness</td><td>" + (presets.basement_auto ? "automatic" : "manual") + "</td></tr>";
+    $("setupTable").innerHTML = presetRows + S.meta.parameters.map(p => "<tr><td>" + p.label + (p.unit ? ' <span class="unit">[' + p.unit + "]</span>" : "") + "</td><td>" +
       (p.kind === "choice" ? (p.choices[String(Math.round(s.parameters[p.name]))] || s.parameters[p.name]) : p.kind === "bool" ? (s.parameters[p.name] ? "on" : "off") : fmt(s.parameters[p.name])) + "</td></tr>").join("");
     $("setupLayers").innerHTML = "<tr><td>class</td><td>thickness · regolith / ice / soot</td></tr>" + s.layers.map(r => "<tr><td>" + r[0] + "</td><td>" + fmt(r[1]) + " m · " + fmt(r[2]) + " / " + fmt(r[3]) + " / " + fmt(r[4]) + "</td></tr>").join("");
   }
@@ -518,13 +629,17 @@
   async function init() {
     try { S.meta = await api("/api/meta"); } catch (e) { $("barStatus").innerHTML = '<span style="color:var(--alert)">cannot reach the server: ' + e.message + "</span>"; return; }
     S.kind = S.meta.default_kind || "shaded_relief";
-    buildComposer(); setParameters({}); setLayers(S.meta.layers);
+    buildComposer(); setParameters({}); setLayers(S.meta.layers); applyPresets();
     [0, 45, 90, 135, 180, 225, 270, 315].forEach(a => { const o = document.createElement("option"); o.value = a; o.textContent = a + "°"; if (a === S.az) o.selected = true; $("az").appendChild(o); });
     [10, 25, 45, 65].forEach(a => { const o = document.createElement("option"); o.value = a; o.textContent = a + "°"; if (a === S.alt) o.selected = true; $("alt").appendChild(o); });
     $("newBtn").onclick = () => openComposer({}, S.meta.layers);
     $("emptyNew").onclick = () => openComposer({}, S.meta.layers);
     $("runBtn").onclick = submitRun;
-    $("resetBtn").onclick = () => { setParameters({}); setLayers(S.meta.layers); setMsg(""); };
+    $("resetBtn").onclick = () => { S.presets = Object.assign({}, S.meta.default_presets); setParameters({}); setLayers(S.meta.layers); applyPresets(); scheduleEstimate(); setMsg(""); };
+    $("saveBtn").onclick = saveSettings;
+    $("loadBtn").onclick = () => $("loadFile").click();
+    $("loadFile").onchange = () => { if ($("loadFile").files[0]) loadSettingsFile($("loadFile").files[0]); $("loadFile").value = ""; };
+    $("addLayer").addEventListener("click", scheduleEstimate);
     $("cancelBtn").onclick = () => show(S.current ? "runView" : "empty");
     $("addLayer").onclick = () => $("layers").appendChild(layerRow([0, 1, 1, 0, 0]));
     $("filter").oninput = renderList;
@@ -537,7 +652,7 @@
     $("secPos").oninput = updateSection;
     $("secDepth").onchange = updateSection;
     document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => selectTab(b.dataset.tab));
-    $("editBtn").onclick = () => openComposer(S.current.parameters, S.current.layers);
+    $("editBtn").onclick = () => openComposer(S.current.parameters, S.current.layers, Object.assign({ body: "custom", production_function: "power_law", basement_auto: false }, S.current.presets || {}));
     $("deleteBtn").onclick = deleteCurrent;
     await refreshRuns();
     const runId = new URLSearchParams(location.search).get("run");

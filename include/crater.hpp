@@ -23,7 +23,7 @@ std::vector<double> ejectaThickness;  // ejecta blanket thickness at those dista
 Crater(Impactor impactor);                                                         // random location
 Crater(Impactor impactor, double xLocation, double yLocation);                     // given location
 Crater(Impactor impactor, double xLocation, double yLocation, Layer ejectedMass);  // ghost crater: inherits the ejecta composition
-Crater(double xLocation, double yLocation, double finalRadius);                    // given radius, no ejecta (secondaries)
+Crater(double xLocation, double yLocation, double finalRadius, double depthRatio); // given radius and depth/diameter, no ejecta (secondaries)
 
 private:
 void initializeFromImpactor(const Impactor &impactor);

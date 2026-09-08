@@ -55,6 +55,8 @@ double ejectaVolatileRetention; // The fraction of volatiles that remain in the 
 double ejectaSootRetention; // The fraction of soot that remain in the crater ejecta
 double minimumLayerThickness; // Deposits thinner than this (m) are mixed into the surface layer
 double slope_secondaries; // Slope of the secondary crater size distribution
+double secondaryLargestFraction; // Largest secondary radius as a fraction of the primary radius
+double secondaryDepthToDiameter; // Depth to diameter ratio of secondary craters
 double iceDensity; // The density of ice
 double regolithDensity; // The density of regolith
 double sootDensity; // The density of "soot"
@@ -161,6 +163,8 @@ int main() {
         ejectaSootRetention = (double) setVariable(varList, "ejectaSootRetention");
         minimumLayerThickness = setVariableOptional(varList, "minimumLayerThickness", 0.0);
         slope_secondaries = setVariable(varList, "slope_secondaries");
+        secondaryLargestFraction = setVariableOptional(varList, "secondaryLargestFraction", 0.05);
+        secondaryDepthToDiameter = setVariableOptional(varList, "secondaryDepthToDiameter", setVariable(varList, "depthToDiameter"));
         iceDensity = setVariable(varList, "iceDensity");
         regolithDensity = setVariable(varList, "regolithDensity");
         sootDensity = setVariable(varList, "sootDensity");
@@ -293,17 +297,17 @@ int main() {
                                 grid.formCrater(ghost);
                         }
 
-                        // Secondary craters:
-                        if (isEmplaceSecondaries) {
-                                // Form secondary craters within 4 crater radii from the primary:
-                                if (crater.numberOfSecondaries > 0) {
-                                        addLogEntry("Primary diameter: " + std::to_string(2*crater.finalRadius) + ". Number of secondaries: " + std::to_string(crater.numberOfSecondaries) + ".", true);
-                                }
+                        // Secondary craters: radii follow N(>r) = (r_max / r)^slope between one pixel and
+                        // secondaryLargestFraction of the primary radius, within 4 primary radii of the primary.
+                        if (isEmplaceSecondaries && crater.numberOfSecondaries > 0) {
+                                const double largestSecondaryRadius = secondaryLargestFraction * crater.finalRadius;
+                                const double truncation = 1 - pow(resolution / largestSecondaryRadius, slope_secondaries);
+                                addLogEntry("Primary diameter: " + std::to_string(2*crater.finalRadius) + ". Number of secondaries: " + std::to_string(crater.numberOfSecondaries) + ".", false);
                                 for (long j = 0; j < crater.numberOfSecondaries; j++) {
                                         double secondaryxLocation = randU(crater.xLocation - 4 * crater.finalRadius, crater.xLocation + 4 * crater.finalRadius);
                                         double secondaryyLocation = randU(crater.yLocation - 4 * crater.finalRadius, crater.yLocation + 4 * crater.finalRadius);
-                                        double secondaryRadius = resolution * pow(randU(0,1), -1/slope_secondaries); // Set the radius from the cumulative distribution, meters
-                                        Crater secondaryCrater(secondaryxLocation, secondaryyLocation, secondaryRadius);
+                                        double secondaryRadius = resolution * pow(1 - randU(0, 1) * truncation, -1 / slope_secondaries);
+                                        Crater secondaryCrater(secondaryxLocation, secondaryyLocation, secondaryRadius, secondaryDepthToDiameter);
                                         grid.formCrater(secondaryCrater);
                                 }
                         }

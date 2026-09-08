@@ -16,6 +16,26 @@ stage with the selected run. The page posts a parameter set, the server runs the
 
 Results can be shared with the page link (`?run=<id>`).
 
+The run setup offers, besides the raw model parameters:
+
+- **Target body** presets (Moon, Mercury, Mars, Ceres, Vesta, custom) that set gravity, impact
+  velocity and target density; editing one of those switches the preset to custom. The angle of
+  repose is never changed by a preset (default 35 deg).
+- **Production functions** for the impactor flux. The model samples a single power law
+  `N(>d) = c d^-b`; a production function (crater counts) is converted to impactor sizes through the
+  model's own crater scaling and fitted by that power law over the run's impactor size range, and
+  the fitted `c`, `b` are shown. Neukum et al. (2001, lunar) and Daubar et al. (2013, current Mars)
+  are included; Marchi et al. (2009) is listed but disabled until its coefficients are entered in
+  `python/regolit/scaling.py`; "Power law (manual)" lets you type `c` and `b` yourself.
+- An **automatic basement thickness**: the initial layers plus three times the depth of the
+  largest crater expected in the run, with a checkbox to override it.
+- A **secondary craters** panel (largest secondary as a fraction of the primary radius,
+  size-distribution slope, depth/diameter) that unfolds when secondaries are switched on.
+- A live **estimate** line: expected number of impacts, largest impactor and crater, smallest crater,
+  and the basement suggestion, recomputed as you edit (`POST /api/estimate`).
+- **Save settings / Load settings**: the parameters, layers and presets as a JSON file. A run's
+  Setup tab also records its presets, and "Edit & run again" restores them.
+
 ## Run locally
 
 ```bash

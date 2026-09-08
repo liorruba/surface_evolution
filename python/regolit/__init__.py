@@ -10,9 +10,10 @@ only loaded when a figure is requested.
 """
 from .io import (RegolitOutput, Subsurface, read_config, write_config, read_layers, write_layers,
                  read_matrix, read_subsurface, read_histogram, read_craters)
+from . import scaling
 
 __all__ = ["RegolitOutput", "Subsurface", "read_config", "write_config", "read_layers", "write_layers",
-           "read_matrix", "read_subsurface", "read_histogram", "read_craters",
+           "read_matrix", "read_subsurface", "read_histogram", "read_craters", "scaling",
            "run", "build", "REPO_ROOT", "DEFAULT_BINARY", "quicklook", "plot_histogram"]
 
 _LAZY = {"run": "driver", "build": "driver", "REPO_ROOT": "driver", "DEFAULT_BINARY": "driver",

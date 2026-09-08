@@ -216,7 +216,7 @@ void Grid::carveCavity(Crater &crater){
 			if (r > R) {
 				continue;
 			}
-			const double target = plane.at(x[i], y[j]) - cavityDepthProfile(R, r) + crater.rimHeight + rimEjecta;
+			const double target = plane.at(x[i], y[j]) - cavityDepthProfile(R, crater.finalDepth, r) + crater.rimHeight + rimEjecta;
 			const double delta = target - subsurfColumns[j][i].getSurfaceElevation();
 			if (delta < -kElevationTolerance) {
 				excavated.consolidate(subsurfColumns[j][i].integrateColumnComposition(-delta));
@@ -371,23 +371,22 @@ void Grid::formCrater(Crater &crater){
 }
 
 ///////////////////
-// Crater profiles: depth below the reference plane, from depthToDiameter * D at the center to 0 at the rim.
+// Crater profiles: depth below the reference plane, from the crater depth at the center to 0 at the rim.
 ///////////////////
-double Grid::cavityDepthProfile(double craterRadius, double distanceFromCraterCenter) const {
+double Grid::cavityDepthProfile(double craterRadius, double craterDepth, double distanceFromCraterCenter) const {
 	if (craterProfileType == 1) {
-		return craterParabolicDepthProfile(craterRadius, distanceFromCraterCenter);
+		return craterParabolicDepthProfile(craterRadius, craterDepth, distanceFromCraterCenter);
 	}
-	return craterSphericalDepthProfile(craterRadius, distanceFromCraterCenter);
+	return craterSphericalDepthProfile(craterRadius, craterDepth, distanceFromCraterCenter);
 }
 
 // Parabolic:
-double Grid::craterParabolicDepthProfile(double craterRadius, double distanceFromCraterCenter) const {
-	return depthToDiameter * 2 * craterRadius * (1 - pow(distanceFromCraterCenter/craterRadius,2));
+double Grid::craterParabolicDepthProfile(double craterRadius, double craterDepth, double distanceFromCraterCenter) const {
+	return craterDepth * (1 - pow(distanceFromCraterCenter/craterRadius,2));
 }
 
 // Bowl shaped (spherical cap):
-double Grid::craterSphericalDepthProfile(double craterRadius, double distanceFromCraterCenter) const {
-	double craterDepth = 2 * craterRadius * depthToDiameter;
+double Grid::craterSphericalDepthProfile(double craterRadius, double craterDepth, double distanceFromCraterCenter) const {
 	double sphereRadius = (pow(craterRadius,2) + pow(craterDepth,2)) / 2 / craterDepth;
 
 	return -sphereRadius + craterDepth + sqrt(std::max(0.0, pow(sphereRadius,2) - pow(distanceFromCraterCenter,2)));
