@@ -986,10 +986,9 @@ def render_figure(run_id: str, name: str, scale: int = 1) -> Path:
             axes[0].set_ylim(low, max(high, geometric * 2))
             axes[0].axhline(geometric, color=THEME["muted"], lw=0.9, ls="--")
             axes[0].axhline(0.1 * geometric, color=THEME["muted"], lw=0.8, ls=":"); axes[0].axhline(0.01 * geometric, color=THEME["muted"], lw=0.8, ls=":")
-            x_text = axes[0].get_xlim()[0] * 1.15
-            axes[0].text(x_text, geometric * 1.1, "geometric saturation", fontsize=6.5, color=THEME["muted"])
-            axes[0].text(x_text, 0.1 * geometric * 1.1, "10% (empirical saturation)", fontsize=6.5, color=THEME["muted"])
-            axes[0].text(x_text, 0.01 * geometric * 1.1, "1%", fontsize=6.5, color=THEME["muted"])
+            x_text = axes[0].get_xlim()[1] / 1.08   # right-aligned, just above each line
+            for level, text in [(geometric, "geometric saturation"), (0.1 * geometric, "10% of geometric (empirical saturation)"), (0.01 * geometric, "1% of geometric")]:
+                axes[0].text(x_text, level * 1.12, text, fontsize=6.5, color=THEME["muted"], ha="right", va="bottom")
             axes[0].set_xlabel("crater diameter [m]"); axes[0].set_ylabel("R"); axes[0].set_title("R-plot (√2 bins)", fontsize=10)
             axes[1].set_xlabel("crater diameter [m]"); axes[1].set_ylabel("count per √2 bin"); axes[1].set_title("Counts per √2 bin", fontsize=10)
             legend = axes[0].legend(loc="upper right", **legend_kwargs); legend.get_frame().set_alpha(0.9)
