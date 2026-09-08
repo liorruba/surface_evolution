@@ -201,10 +201,15 @@ def require_auth(credentials: Optional[HTTPBasicCredentials] = Depends(security)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    requeue = recover_runs()
     prune_runs()
     if not BINARY.exists():
         print("WARNING: model binary not found at {}; run `make` first.".format(BINARY), file=sys.stderr)
+    for run_id, request in requeue:
+        start_background(run_id, request["overrides"], request["layers"], request["presets"])
+    watchdog = asyncio.create_task(watch_orphans())
     yield
+    watchdog.cancel()
 
 
 app = FastAPI(title="REGOLIT", docs_url=None, redoc_url=None, dependencies=[Depends(require_auth)], lifespan=lifespan)
@@ -372,7 +377,7 @@ def directory_size(path: Path) -> int:
 def prune_runs() -> None:
     """Delete the oldest runs beyond the count limit and until the runs directory fits the disk budget."""
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
-    runs = sorted([p for p in RUNS_DIR.iterdir() if p.is_dir()], key=lambda p: p.stat().st_mtime)
+    runs = sorted([p for p in RUNS_DIR.iterdir() if p.is_dir() and read_status(p) == "done"], key=lambda p: p.stat().st_mtime)
     for old in runs[: max(0, len(runs) - MAX_RUNS_KEPT)]:
         shutil.rmtree(old, ignore_errors=True)
     runs = runs[max(0, len(runs) - MAX_RUNS_KEPT):]
@@ -386,12 +391,93 @@ def prune_runs() -> None:
         total -= sizes[old]
 
 
+def read_status(path: Path) -> str:
+    try:
+        return json.loads((path / "summary.json").read_text()).get("status", "done")
+    except (OSError, ValueError):
+        return "unknown"
+
+
+def write_summary(run_id: str, summary: Dict) -> None:
+    target = RUNS_DIR / run_id / "summary.json"
+    tmp = target.with_name("summary.json.tmp")
+    tmp.write_text(json.dumps(summary, indent=1))
+    os.replace(tmp, target)
+
+
+def queue_run(run_id: str, overrides: Dict[str, float], layers: Optional[List[List[float]]], presets: Optional[Dict[str, object]]) -> Dict:
+    """Create the run directory with a provisional summary (status 'queued') so it shows up at once."""
+    effective = default_parameters()
+    effective.update(overrides)
+    workdir = RUNS_DIR / run_id
+    workdir.mkdir(parents=True, exist_ok=True)
+    summary = {
+        "id": run_id,
+        "status": "queued",
+        "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "queued_at": time.time(),
+        "parameters": {p["name"]: effective.get(p["name"]) for p in PARAMETERS},
+        "layers": layers if layers is not None else default_layers(),
+        "presets": clean_presets(presets),
+        "steps": [], "times": [],
+    }
+    (workdir / "request.json").write_text(json.dumps({"overrides": overrides, "layers": layers, "presets": presets}))
+    write_summary(run_id, summary)
+    return summary
+
+
+def pid_alive(pid: Optional[int]) -> bool:
+    if not pid:
+        return False
+    try:
+        os.kill(int(pid), 0)
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+PROGRESS_PATTERN = re.compile(r"Progress: ([0-9.]+)%")
+
+
+def progress_of(run_id: str, summary: Dict) -> Dict:
+    """Progress fields for an unfinished run, read from the model's log."""
+    info = {"progress": None, "phase": "waiting for a free slot" if summary.get("status") == "queued" else "starting", "elapsed_s": None}
+    if summary.get("started_at"):
+        info["elapsed_s"] = round(time.time() - summary["started_at"], 1)
+    log_path = RUNS_DIR / run_id / "log" / "log.txt"
+    if summary.get("status") == "running" and log_path.exists():
+        try:
+            lines = log_path.read_text(errors="replace").splitlines()
+        except OSError:
+            lines = []
+        for line in reversed(lines):
+            match = PROGRESS_PATTERN.search(line)
+            if match:
+                info["progress"] = float(match.group(1))
+                break
+        for line in reversed(lines):   # the latest non-warning line describes the current phase
+            if "WARNING" not in line:
+                info["phase"] = line.split("\t", 1)[-1].strip()
+                break
+    return info
+
+
 def execute(run_id: str, overrides: Dict[str, float], layers: Optional[List[List[float]]], presets: Optional[Dict[str, object]] = None) -> Dict:
-    """Run the model (blocking), compact the layer stacks and write summary.json."""
+    """Run the model (blocking) in the run directory prepared by queue_run, then finalize it."""
     workdir = RUNS_DIR / run_id
     started = time.time()
-    out = regolit.run(overrides, workdir, binary=BINARY, layers=layers if layers is not None else LAYERS_TEMPLATE,
-                      build_if_missing=False, quiet=True, timeout=RUN_TIMEOUT)
+    summary = load_summary(run_id)
+    summary.update(status="running", started_at=started, pid=os.getpid())
+    write_summary(run_id, summary)
+    regolit.run(overrides, workdir, binary=BINARY, layers=layers if layers is not None else LAYERS_TEMPLATE,
+                build_if_missing=False, quiet=True, timeout=RUN_TIMEOUT)
+    return finalize(run_id, summary, started)
+
+
+def finalize(run_id: str, summary: Dict, started: float) -> Dict:
+    """Compact the layer stacks of a finished model run and write the final summary.json."""
+    workdir = RUNS_DIR / run_id
+    out = RegolitOutput(workdir)
     series = out.elevation_series()
     match = re.search(r"Number of craters in simulation: (\d+)", out.log())
 
@@ -400,20 +486,16 @@ def execute(run_id: str, overrides: Dict[str, float], layers: Optional[List[List
     for suffix in out.subsurface_steps():
         raw = out.output_dir / "subsurface_{}.out".format(suffix)
         if raw.exists():
-            Subsurface.load  # noqa: B018 (keep the name imported for readers)
             sub = regolit.read_subsurface(raw)
             sub.save(out.output_dir / "subsurface_{}.npz".format(suffix))
             raw.unlink()
         has_subsurface = True
 
     x_full, _ = out.full_resolution_coordinates()
-    summary = {
-        "id": run_id,
-        "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+    summary.update({
+        "status": "done",
         "duration_s": round(time.time() - started, 2),
         "parameters": {p["name"]: out.config.get(p["name"]) for p in PARAMETERS},
-        "layers": layers if layers is not None else default_layers(),
-        "presets": clean_presets(presets),
         "steps": out.steps,
         "times": [float(t) for t in out.times],
         "grid": out.n,
@@ -426,10 +508,42 @@ def execute(run_id: str, overrides: Dict[str, float], layers: Optional[List[List
         "total_craters": int(match.group(1)) if match else None,
         "visible_craters": int(len(out.craters()["x"])),
         "has_subsurface": has_subsurface,
-    }
-    (workdir / "summary.json").write_text(json.dumps(summary, indent=1))
+    })
+    summary.pop("started_at", None); summary.pop("queued_at", None); summary.pop("pid", None)
     (workdir / "cache").mkdir(exist_ok=True)
+    write_summary(run_id, summary)
+    (workdir / "request.json").unlink(missing_ok=True)
     return summary
+
+
+def fail_run(run_id: str, error: str) -> None:
+    try:
+        summary = load_summary(run_id)
+    except (OSError, ValueError, HTTPException):
+        return
+    summary.update(status="failed", error=error[:2000], duration_s=round(time.time() - summary.get("started_at", time.time()), 2))
+    summary.pop("started_at", None); summary.pop("queued_at", None); summary.pop("pid", None)
+    write_summary(run_id, summary)
+
+
+def recover_runs() -> List[Tuple[str, Dict]]:
+    """After a (re)start: running runs whose worker is alive continue on their own; running runs whose
+    worker is gone are marked failed; queued runs are returned so they can be started again."""
+    requeue = []
+    for path in RUNS_DIR.iterdir() if RUNS_DIR.exists() else []:
+        if not (path.is_dir() and RUN_ID_PATTERN.match(path.name)):
+            continue
+        status = read_status(path)
+        if status == "running":
+            summary = json.loads((path / "summary.json").read_text())
+            if not pid_alive(summary.get("pid")):
+                fail_run(path.name, "the worker process disappeared while this run was in progress")
+        elif status == "queued":
+            try:
+                requeue.append((path.name, json.loads((path / "request.json").read_text())))
+            except (OSError, ValueError):
+                fail_run(path.name, "the server was restarted before this run started")
+    return requeue
 
 
 def list_runs() -> List[Dict]:
@@ -444,7 +558,8 @@ def list_runs() -> List[Dict]:
             summary = json.loads(summary_path.read_text())
         except ValueError:
             continue
-        item = {key: summary.get(key) for key in ("id", "created", "duration_s", "grid", "resolution", "total_craters", "visible_craters")}
+        item = {key: summary.get(key) for key in ("id", "status", "error", "created", "duration_s", "grid", "resolution", "total_craters", "visible_craters")}
+        item["status"] = item["status"] or "done"
         item["parameters"] = {key: summary.get("parameters", {}).get(key) for key in ("regionWidth", "resolution", "endTime", "randomSeed")}
         runs.append(item)
     runs.sort(key=lambda item: item["id"], reverse=True)
@@ -455,7 +570,15 @@ def load_summary(run_id: str) -> Dict:
     return json.loads((run_dir(run_id) / "summary.json").read_text())
 
 
+def require_done(run_id: str) -> Dict:
+    summary = load_summary(run_id)
+    if summary.get("status", "done") != "done":
+        raise HTTPException(409, "run {} is {}".format(run_id, summary.get("status")))
+    return summary
+
+
 def output_of(run_id: str) -> RegolitOutput:
+    require_done(run_id)
     return RegolitOutput(run_dir(run_id))
 
 
@@ -541,7 +664,7 @@ def not_found_if_deleted(function, *args):
 
 
 def render_map(run_id: str, kind: str, step: int, azimuth: float = 315.0, altitude: float = 25.0) -> Path:
-    summary = load_summary(run_id)
+    summary = require_done(run_id)
     step = step_index(summary, step)
     if kind not in MAP_KINDS:
         raise HTTPException(404, "unknown map kind")
@@ -587,7 +710,7 @@ def render_map(run_id: str, kind: str, step: int, azimuth: float = 315.0, altitu
 
 def render_section(run_id: str, axis: str, at: float, depth: float, step: int) -> bytes:
     """Layered subsurface along a west-east (axis x, at y = at) or south-north (axis y, at x = at) line."""
-    summary = load_summary(run_id)
+    summary = require_done(run_id)
     step = step_index(summary, step)
     if axis not in ("x", "y"):
         raise HTTPException(400, "axis must be x or y")
@@ -698,7 +821,7 @@ def render_histograms(run_id: str) -> Path:
 def render_animation(run_id: str, kind: str) -> Path:
     from PIL import Image
 
-    summary = load_summary(run_id)
+    summary = require_done(run_id)
     if kind not in MAP_KINDS:
         raise HTTPException(404, "unknown map kind")
     target = run_dir(run_id) / "cache" / "animation_{}.gif".format(kind)
@@ -713,6 +836,7 @@ def render_animation(run_id: str, kind: str) -> Path:
 
 
 def make_zip(run_id: str) -> Path:
+    require_done(run_id)
     directory = run_dir(run_id)
     target = directory / "cache" / "regolit_{}.zip".format(run_id)
     if target.exists():
@@ -862,37 +986,83 @@ async def get_runs() -> List[Dict]:
     return list_runs()
 
 
-@app.post("/api/runs")
-async def create_run(request: RunRequest) -> Dict:
-    overrides, layers = validate(request)
-    if WAITING["count"] >= MAX_QUEUE:
-        raise HTTPException(429, "the server is busy; please try again in a minute")
-    run_id = new_run_id()
+BACKGROUND_TASKS: set = set()
+
+
+async def run_in_background(run_id: str, overrides: Dict[str, float], layers: Optional[List[List[float]]], presets: Optional[Dict[str, object]]) -> None:
+    """Wait for a slot, then run the model in a detached worker process (python -m web.worker).
+
+    The worker lives in its own session, so it survives a reload or restart of this server, a
+    dropped client connection and a proxy timeout; it writes summary.json itself when it is done."""
     WAITING["count"] += 1
     acquired = False
     try:
         async with RUN_SEMAPHORE:
             WAITING["count"] -= 1
             acquired = True
+            if not (RUNS_DIR / run_id / "summary.json").exists():   # deleted while queued
+                return
             try:
-                summary = await asyncio.to_thread(execute, run_id, overrides, layers, request.presets)
-            except Exception as error:  # model failure: report the message, drop the directory
-                shutil.rmtree(RUNS_DIR / run_id, ignore_errors=True)
-                raise HTTPException(500, "the model run failed: {}".format(str(error)[:800]))
+                process = await asyncio.create_subprocess_exec(
+                    sys.executable, "-m", "web.worker", run_id, cwd=str(REPO_ROOT), start_new_session=True,
+                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+                _, stderr = await process.communicate()
+                if process.returncode != 0 and read_status(RUNS_DIR / run_id) in ("queued", "running"):
+                    fail_run(run_id, "the worker exited with status {}: {}".format(process.returncode, stderr.decode(errors="replace")[-1500:]))
+            except Exception as error:
+                fail_run(run_id, "could not start the worker: {}".format(error))
     finally:
         if not acquired:
             WAITING["count"] -= 1
-    prune_runs()
+        await asyncio.to_thread(prune_runs)
+
+
+def start_background(run_id: str, overrides: Dict[str, float], layers: Optional[List[List[float]]], presets: Optional[Dict[str, object]]) -> None:
+    task = asyncio.create_task(run_in_background(run_id, overrides, layers, presets))
+    BACKGROUND_TASKS.add(task)
+    task.add_done_callback(BACKGROUND_TASKS.discard)
+
+
+async def watch_orphans() -> None:
+    """Runs adopted from a previous server process: mark them failed if their worker vanished."""
+    while True:
+        await asyncio.sleep(15)
+        try:
+            for path in RUNS_DIR.iterdir():
+                if path.is_dir() and RUN_ID_PATTERN.match(path.name) and read_status(path) == "running":
+                    summary = json.loads((path / "summary.json").read_text())
+                    if not pid_alive(summary.get("pid")):
+                        fail_run(path.name, "the worker process disappeared while this run was in progress")
+        except Exception:
+            pass
+
+
+@app.post("/api/runs", status_code=202)
+async def create_run(request: RunRequest) -> Dict:
+    """Validate, register the run and start it in the background; poll GET /api/runs/{id} for its status."""
+    overrides, layers = validate(request)
+    if WAITING["count"] >= MAX_QUEUE:
+        raise HTTPException(429, "the server is busy; please try again in a minute")
+    run_id = new_run_id()
+    summary = queue_run(run_id, overrides, layers, request.presets)
+    start_background(run_id, overrides, layers, request.presets)
+    summary["waiting"] = WAITING["count"]
     return summary
 
 
 @app.get("/api/runs/{run_id}")
 async def get_run(run_id: str) -> Dict:
-    return load_summary(run_id)
+    summary = load_summary(run_id)
+    if summary.get("status", "done") in ("queued", "running"):
+        summary.update(progress_of(run_id, summary))
+        summary["waiting"] = WAITING["count"]
+    return summary
 
 
 @app.post("/api/runs/{run_id}/delete")
 async def delete_run(run_id: str) -> Dict:
+    if load_summary(run_id).get("status", "done") == "running":
+        raise HTTPException(409, "this run is still running; wait for it to finish before deleting it")
     shutil.rmtree(run_dir(run_id), ignore_errors=True)
     with PLOT_LOCK:
         SUBSURFACE_CACHE.pop(run_id, None)

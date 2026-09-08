@@ -10,7 +10,9 @@ After=network.target
 WorkingDirectory=__APP_DIR__
 EnvironmentFile=%h/.config/regolit/web.env
 ExecStartPre=/usr/bin/make -s -C __APP_DIR__
-ExecStart=__APP_DIR__/venv/bin/uvicorn web.server:app --host 127.0.0.1 --port __PORT__ --reload --reload-dir web --reload-dir python --proxy-headers --forwarded-allow-ips=127.0.0.1
+ExecStart=__APP_DIR__/venv/bin/uvicorn web.server:app --host 127.0.0.1 --port __PORT__ --reload --reload-dir web --reload-dir python --proxy-headers --forwarded-allow-ips=127.0.0.1 --timeout-graceful-shutdown 15
+# Model runs are detached worker processes (web/worker.py); a restart or reload of the server must not kill them.
+KillMode=process
 Restart=on-failure
 RestartSec=3
 

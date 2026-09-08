@@ -114,6 +114,19 @@ nginx in front, TLS from Let's Encrypt, HTTP basic authentication inside the app
 
 Logs: `journalctl -u regolit-web -f`. Health check: `curl http://127.0.0.1:8010/health`.
 
+## How a run executes
+
+`POST /api/runs` validates the request, creates the run directory with a provisional
+`summary.json` (status `queued`) and returns at once; the page switches to the run and polls
+`GET /api/runs/{id}`, which adds the model's progress (parsed from its log) while the status is
+`queued` or `running`. Up to `REGOLIT_WEB_CONCURRENCY` runs execute at a time; each one is a
+detached worker process (`python -m web.worker <id>`, its own session) that runs the model, compacts
+the layer stacks and writes the final summary itself. The worker therefore survives a reload or
+restart of the server, a closed browser tab and any proxy timeout. On startup the server re-queues
+runs that were still `queued`, leaves `running` workers alone, and marks runs whose worker died
+as `failed`. Maps and downloads answer 409 until the run is `done`; a running run cannot be
+deleted.
+
 ## Limits
 
 Requests are validated against the ranges in `PARAMETERS` in `server.py`. A run is refused if it
