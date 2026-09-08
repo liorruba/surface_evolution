@@ -119,7 +119,7 @@ PARAMETERS: List[Dict] = [
     dict(group="Impactors", name="minimumImpactorDiameter", label="Minimum impactor diameter", unit="m", min=0.02, max=50, kind="number",
          description="Smallest impactor simulated."),
     dict(group="Impactors", name="fluxConstant_c", label="Flux constant c", unit="m^-2 Ma^-1", min=1e-14, max=1e-2, kind="number", auto="production_function",
-         description="N(>1 m) impactors per m^2 per Ma. Set by the production function unless 'Power law (manual)' is chosen."),
+         description="N(>1 m) impactors per m^2 per Ma. Set by the production function unless 'Power law' is chosen."),
     dict(group="Impactors", name="slope_b", label="Slope b", unit="", min=1.2, max=4.5, kind="number", auto="production_function",
          description="Cumulative slope: N(>d) ~ d^-b. Set by the production function unless manual."),
     dict(group="Impactors", name="earthFluxRatioCoefficient", label="Flux multiplier", unit="", min=0.001, max=100, kind="number",

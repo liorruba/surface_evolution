@@ -52,7 +52,7 @@ KILOTON_J = 4.184e12
 
 PRODUCTION_FUNCTIONS: Dict[str, Dict] = {
     "williams": {
-        "label": "Williams et al. (2014): fireball flux scaled to the body",
+        "label": "Williams et al. (2014)",
         "kind": "impactor_power_law",
         "a0": 0.5677, "b0": 0.90,       # log10 N(>E) = a0 - b0 log10 E, bolides per year on Earth, E in kt (Brown et al. 2002)
         "reference": "Williams, Pathare & Aharonson (2014), Icarus 235, 23: the annual flux of terrestrial fireballs "
@@ -62,7 +62,7 @@ PRODUCTION_FUNCTIONS: Dict[str, Dict] = {
         "available": True,
     },
     "neukum": {
-        "label": "Neukum et al. (2001), lunar",
+        "label": "Neukum et al. (2001)",
         "kind": "log10_polynomial",
         "coefficients": NEUKUM_COEFFICIENTS,        # log10 N(>D) [km^-2 Ga^-1] = sum a_j (log10 D_km)^j
         "valid_range_m": [10.0, 300000.0],
@@ -71,7 +71,7 @@ PRODUCTION_FUNCTIONS: Dict[str, Dict] = {
         "available": True,
     },
     "daubar": {
-        "label": "Daubar et al. (2013), current Mars",
+        "label": "Daubar et al. (2013)",
         "kind": "power_law",
         "reference_diameter_m": 3.9,
         "reference_rate": 1.65e-6 * 1e-6 * 1e6,     # 1.65e-6 craters km^-2 yr^-1 at D >= 3.9 m -> per m^2 per Ma
@@ -82,7 +82,7 @@ PRODUCTION_FUNCTIONS: Dict[str, Dict] = {
         "available": True,
     },
     "power_law": {
-        "label": "Power law (manual)",
+        "label": "Power law",
         "kind": "manual",
         "reference": "N(>d) = c d^-b with the flux constant c and slope b entered by hand.",
         "available": True,
