@@ -45,7 +45,7 @@ import numpy as np  # noqa: E402
 from matplotlib.collections import PolyCollection  # noqa: E402
 from matplotlib.colors import LightSource  # noqa: E402
 from matplotlib.patches import Patch  # noqa: E402
-from fastapi import Depends, FastAPI, HTTPException, Query  # noqa: E402
+from fastapi import Depends, FastAPI, HTTPException, Query, Request  # noqa: E402
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response  # noqa: E402
 from fastapi.security import HTTPBasic, HTTPBasicCredentials  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
@@ -228,15 +228,30 @@ MAP_KINDS = {
 # App, auth, concurrency
 # ----------------------------------------------------------------------------------------------
 security = HTTPBasic(auto_error=False)
+SESSION_COOKIE = "regolit_session"
 
 
-def require_auth(credentials: Optional[HTTPBasicCredentials] = Depends(security)) -> None:
+def session_token() -> str:
+    """A token derived from the credentials, so a browser that authenticated once can send a cookie instead of
+    being challenged with 401 on every request (some browsers never send Basic credentials pre-emptively, and
+    every challenge costs a round trip through the tunnel). Stable across restarts; changes with the password."""
+    import hashlib
+    import hmac
+    return hmac.new((AUTH_USER + ":" + AUTH_PASSWORD).encode(), b"regolit-session-v1", hashlib.sha256).hexdigest()
+
+
+def require_auth(request: Request, response: Response, credentials: Optional[HTTPBasicCredentials] = Depends(security)) -> None:
     if not AUTH_USER:
+        return
+    cookie = request.cookies.get(SESSION_COOKIE)
+    if cookie and secrets.compare_digest(cookie, session_token()):
         return
     ok = credentials is not None and secrets.compare_digest(credentials.username, AUTH_USER) \
         and secrets.compare_digest(credentials.password, AUTH_PASSWORD)
     if not ok:
         raise HTTPException(status_code=401, detail="Authentication required", headers={"WWW-Authenticate": "Basic realm=REGOLIT"})
+    secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "") == "https"
+    response.set_cookie(SESSION_COOKIE, session_token(), max_age=30 * 24 * 3600, httponly=True, samesite="lax", secure=secure, path="/")
 
 
 @asynccontextmanager

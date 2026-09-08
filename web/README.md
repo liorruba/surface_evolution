@@ -105,7 +105,11 @@ compute machine.
 ## Deploy on the droplet itself (alternative)
 
 The layout is the one used for moon.liorruba.com: uvicorn bound to localhost as a systemd service,
-nginx in front, TLS from Let's Encrypt, HTTP basic authentication inside the app.
+nginx in front, TLS from Let's Encrypt, HTTP basic authentication inside the app. After the first
+successful login the app also sets a session cookie derived from the credentials, so browsers that do
+not send Basic credentials pre-emptively are not challenged with a 401 round trip on every request.
+Map frames are preloaded one at a time, nearest steps first, and only while the maps tab is showing,
+so a run with hundreds of steps does not starve the figures and the run list over the tunnel.
 
 1. DNS: add an `A` record `regolit.liorruba.com` pointing at the droplet's IP (the moon
    application's droplet is 192.241.128.158).

@@ -298,6 +298,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const S = { meta: null, runs: [], current: null, kind: "shaded_relief", species: "soot", step: 0, axis: "x", at: 0, depth: 2, az: 315, alt: 25, playing: null, sectionTimer: null,
+    preloaded: new Set(), preloadQueue: [], preloading: null, tab: "maps",
               presets: { body: "moon", production_function: "neukum", basement_auto: true }, estimateTimer: null, estimateSeq: 0 };
 
   // ---------- helpers ----------
@@ -685,6 +686,7 @@
     return out;
   }
   function showRun(summary) {
+    cancelPreload(); S.preloaded = new Set();
     S.current = summary; S.loading = summary.id;
     stopPlaying(); stopPolling();
     const p = summary.parameters;
@@ -739,8 +741,30 @@
     const p = S.current.parameters;
     $("mapCaption").innerHTML = S.meta.map_kinds[S.kind] + " &middot; " + fmt(p.regionWidth) + " m across at " + fmt(S.current.resolution) + " m/px" +
       (S.kind === "shaded_relief" ? " &middot; hillshade of the elevation map, no vertical exaggeration" : "") + ". Click the map to place the cross-section line.";
-    S.current.steps.forEach((_, k) => { if (k !== S.step) { const i = new Image(); i.src = mapUrl(k); } });   // preload for smooth stepping
+    schedulePreload();
     drawOverlay();
+  }
+  // Frames are preloaded one at a time, nearest steps first, and only while the maps tab is showing: a run with
+  // hundreds of steps would otherwise put hundreds of 400 KB frames in flight and starve everything else (the
+  // figures, the cross-section, the run list) for minutes over the tunnel.
+  function schedulePreload() {
+    const n = S.current.steps.length, order = [];
+    for (let d = 1; d < n; d++) { if (S.step + d < n) order.push(S.step + d); if (S.step - d >= 0) order.push(S.step - d); }
+    S.preloadQueue = order.map(mapUrl).filter(u => !S.preloaded.has(u));
+    pumpPreload();
+  }
+  function pumpPreload() {
+    if (S.preloading || S.tab !== "maps" || !S.current) return;
+    const url = S.preloadQueue.shift();
+    if (!url) return;
+    const img = new Image();
+    S.preloading = img;
+    img.onload = img.onerror = () => { if (img.src) S.preloaded.add(url); S.preloading = null; pumpPreload(); };
+    img.src = url;
+  }
+  function cancelPreload() {
+    S.preloadQueue = [];
+    if (S.preloading) { S.preloading.onload = S.preloading.onerror = null; S.preloading.src = ""; S.preloading = null; }
   }
   function geometry() { return S.meta.map_geometry[S.kind === "shaded_relief" ? "without_colorbar" : "with_colorbar"]; }
   function drawOverlay() {
@@ -778,7 +802,7 @@
     }, 120);
   }
   function refreshHistograms() {
-    document.querySelectorAll("#tab-figures img[data-figure]").forEach(img => { img.src = "/api/runs/" + S.current.id + "/figure/" + img.dataset.figure + ".png"; });
+    document.querySelectorAll("#tab-figures img[data-figure]").forEach(img => { img.fetchPriority = "high"; img.src = "/api/runs/" + S.current.id + "/figure/" + img.dataset.figure + ".png"; });
   }
   function openLightbox(name) {
     $("lightboxImg").src = "/api/runs/" + S.current.id + "/figure/" + name + ".png?scale=2";
@@ -804,8 +828,10 @@
     $("gifLink").onclick = (e) => { e.preventDefault(); window.open(base + "/animation/" + S.kind + ".gif"); };
   }
   function selectTab(name) {
+    S.tab = name;
     document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
     document.querySelectorAll(".tab").forEach(t => t.classList.toggle("hide", t.id !== "tab-" + name));
+    if (name === "maps") { if (S.current) schedulePreload(); } else cancelPreload();
   }
   function stopPlaying() { if (S.playing) { clearInterval(S.playing); S.playing = null; $("play").textContent = "Play"; } }
   function togglePlay() {
