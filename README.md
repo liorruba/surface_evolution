@@ -76,6 +76,11 @@ surface around it (`include/seismic.hpp`, `src/seismic.cpp`):
 - Distant primaries (secondary-crater model) shake the domain from outside when it lies within
   their range. Ghost craters do not shake again: the primary's settling wraps around the domain.
 - `isSeismicShaking 0` keeps only the local wall collapse after each crater.
+- Cost control: the relaxation sweeps only the neighbourhood of the cells that moved in the previous
+  iteration; elevation changes smaller than `minimumLayerThickness` are accumulated per cell and
+  applied to the columns once they add up (and flushed before every output), so a whole-domain shake
+  does not rewrite every column for micrometres of movement. The log reports the time spent in the
+  settling phases.
 
 Defaults (η = 10⁻⁵, Cs = 10⁻², f = 15 Hz, Q = 1500, l_s = 1 km, v_s = 3 km/s, threshold 1 g) sit in
 the middle of Richardson's ranges; the overall degradation rate is uncertain by an order of magnitude.

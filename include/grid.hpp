@@ -37,6 +37,10 @@ double area;
 std::vector<double> x;   // cell-center coordinates, m
 std::vector<double> y;
 std::vector< std::vector<SubsurfColumn> > subsurfColumns;   // indexed [j (y index)][i (x index)]
+// Elevation changes from settling that are still too small to be applied to the columns (|change|
+// below minimumLayerThickness), indexed j * gridSize + i. The true surface is column + pending;
+// the pending part is applied once it accumulates past the threshold, and flushed before output.
+std::vector<double> pendingElevation;
 
 Grid(std::vector< std::vector<double> > _initLayersList, std::vector<int8_t> _pxIdxMat);
 // Forms a crater: carves the cavity, adds the rim and (if enabled) the ejecta blanket, records the
@@ -48,6 +52,9 @@ void thresholdSlopes(double angleOfRepose);
 // (periodic minimum-image distances when periodicDistance, plain distances otherwise), then the
 // collapse of slopes above slopeOfRepose (rise over run). The changes are applied to the columns.
 void updateCraterDepthsWithin(double x, double y, double reach);
+void flushPendingElevation();   // apply every pending settling change (before output)
+static double settleTimers[6];  // seconds spent in settleRegion: copy, dose, diffusion, relaxation, apply, crater update (for the log)
+static void applyElevationChange(SubsurfColumn &column, double change);
 void settleRegion(double xc, double yc, double halfWidth, const std::function<double(double)> *dose, double slopeOfRepose, bool periodicDistance);
 void printSurface(int index, bool isfinal);
 void printSubsurface(int index);

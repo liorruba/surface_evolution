@@ -21,6 +21,7 @@ public:
         static double range(double d, double v, double rho);
         // Downslope diffusion dose K_i (m^2) at distance l from the impact (l floored at the crater radius).
         static double dose(double d, double v, double l, double craterRadius);
+        static double dosePrefactor(double d, double v);   // Cs v^a D^b g^c, evaluated once per impact
 
         // Settle the surface after a crater formed inside the domain: seismic diffusion within its
         // range (periodic distances) and slope collapse, at least within 1.5 crater radii.

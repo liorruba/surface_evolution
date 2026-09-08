@@ -353,6 +353,7 @@ int main() {
         if (testCraterDiameter > 0) {
                 // Test mode: print the initial surface, then form one prescribed crater (impactor from
                 // the inverse scaling) with its ejecta, ghosts and secondaries; the final print follows.
+                grid.flushPendingElevation();
                 grid.printSurface(printIndex, false);
                 grid.printIntegratedSubsurface(depthToIntegrate, printIndex);
                 if (isPrintSubsurface == 1)
@@ -393,7 +394,8 @@ int main() {
                 // Print progress to a file:
                 if (i % numberOfCratersInTimestep == 0) {
                         // Print the surface, the integrated subsurface and (optionally) the full subsurface:
-                        grid.printSurface(printIndex, false);
+                        grid.flushPendingElevation();
+                grid.printSurface(printIndex, false);
                         grid.printIntegratedSubsurface(depthToIntegrate, printIndex);
 
                         if (isPrintSubsurface == 1) {
@@ -412,6 +414,12 @@ int main() {
                             " primaries inside the domain" + (isEmplaceDistantSecondaries ? ", " + std::to_string(secondaries.distantSecondariesFormed) + " from " +
                             std::to_string(secondaries.distantPrimariesSampled) + " distant primaries" : std::string("")) + ".", true);
         }
+        {
+                char buffer[256];
+                snprintf(buffer, sizeof(buffer), "Settling time (s): copy %.1f, dose %.1f, diffusion %.1f, relaxation %.1f, apply %.1f, crater update %.1f.",
+                         Grid::settleTimers[0], Grid::settleTimers[1], Grid::settleTimers[2], Grid::settleTimers[3], Grid::settleTimers[4], Grid::settleTimers[5]);
+                addLogEntry(buffer, true);
+        }
         if (isSeismicShaking) {
                 addLogEntry("Seismic shaking: " + std::to_string(SeismicShaking::shakes) + " impacts shook their surroundings, " +
                             std::to_string(SeismicShaking::wholeDomainShakes) + " of them the whole domain; " +
@@ -426,6 +434,7 @@ int main() {
         impactorsHistogram.print("./output/impactor_histogram.txt");
         grid.sublimateIce(); // Sublimate ice one last time
         grid.thresholdSlopes(angleOfRepose);
+        grid.flushPendingElevation();
         grid.printSurface(printIndex, true);
         grid.printIntegratedSubsurface(depthToIntegrate, printIndex);
         

@@ -12,6 +12,10 @@
 #include "../include/histogram.hpp"
 #include "../include/grid.hpp"
 #include "../include/seismic.hpp"
+#include <chrono>
+
+double Grid::settleTimers[6] = {0, 0, 0, 0, 0, 0};
+static inline double nowSeconds() { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 
 namespace {
 // Elevation changes smaller than this (m) are not worth a layer.
@@ -42,6 +46,7 @@ Grid::Grid(std::vector< std::vector<double> > _initLayersList, std::vector<int8_
 	pixelIndexMatrix = _pxIdxMat;
 	initLayersList = _initLayersList;
 	subsurfColumns = initializeSubsurface();
+	pendingElevation.assign((size_t) gridSize * gridSize, 0.0);
 
 	// Spatial index of crater centers, about 8 x 8 cells per bucket:
 	craterIndex = BucketGrid(regionWidth / 2, std::max(1, gridSize / 8));
@@ -463,18 +468,23 @@ void Grid::relaxBuffer(std::vector<double> &z, long ni, long nj, bool periodicI,
 	const double maxRise = maxSlope * cellSize;
 	const double relaxation = 0.25;
 	const int maxIterations = 100000;
-	std::vector<double> fluxRight(z.size());   // flux from a cell to its right neighbor (negative: from the neighbor)
-	std::vector<double> fluxDown(z.size());    // flux from a cell to its lower neighbor
+	std::vector<double> fluxRight(z.size(), 0.0);   // flux from a cell to its right neighbor (negative: from the neighbor)
+	std::vector<double> fluxDown(z.size(), 0.0);    // flux from a cell to its lower neighbor
 	const long lastI = periodicI ? ni : ni - 1, lastJ = periodicJ ? nj : nj - 1;
+
+	// Only the neighborhood of the cells that moved in the previous iteration can be steep, so each
+	// iteration sweeps the bounding box of those cells (grown by one) instead of the whole buffer.
+	long aI0 = 0, aI1 = ni, aJ0 = 0, aJ1 = nj;
 
 	for (int iteration = 0; iteration < maxIterations; ++iteration) {
 		bool anySteep = false;
+		long sI0 = ni, sI1 = -1, sJ0 = nj, sJ1 = -1;   // bounding box of the cells with a nonzero flux
 
-		#pragma omp parallel for schedule(static) reduction(||:anySteep) if(ni * nj > 65536)
-		for (long j = 0; j < nj; ++j) {
+		#pragma omp parallel for schedule(static) reduction(||:anySteep) reduction(min:sI0,sJ0) reduction(max:sI1,sJ1) if((aI1 - aI0) * (aJ1 - aJ0) > 65536)
+		for (long j = aJ0; j < aJ1; ++j) {
 			const long row = j * ni;
 			const long rowDown = ((j + 1) % nj) * ni;
-			for (long i = 0; i < ni; ++i) {
+			for (long i = aI0; i < aI1; ++i) {
 				const long k = row + i;
 				double flux = 0.0;
 				if (i < lastI) {
@@ -483,10 +493,10 @@ void Grid::relaxBuffer(std::vector<double> &z, long ni, long nj, bool periodicI,
 					const double excess = std::fabs(diff) - maxRise;
 					if (excess > kElevationTolerance) {
 						flux = relaxation * excess * (diff > 0 ? 1.0 : -1.0);
-						anySteep = true;
 					}
 				}
 				fluxRight[k] = flux;
+				bool moved = flux != 0.0;
 
 				flux = 0.0;
 				if (j < lastJ) {
@@ -495,10 +505,15 @@ void Grid::relaxBuffer(std::vector<double> &z, long ni, long nj, bool periodicI,
 					const double excess = std::fabs(diff) - maxRise;
 					if (excess > kElevationTolerance) {
 						flux = relaxation * excess * (diff > 0 ? 1.0 : -1.0);
-						anySteep = true;
 					}
 				}
 				fluxDown[k] = flux;
+				moved = moved || flux != 0.0;
+				if (moved) {
+					anySteep = true;
+					sI0 = std::min(sI0, i); sI1 = std::max(sI1, i);
+					sJ0 = std::min(sJ0, j); sJ1 = std::max(sJ1, j);
+				}
 			}
 		}
 
@@ -506,11 +521,17 @@ void Grid::relaxBuffer(std::vector<double> &z, long ni, long nj, bool periodicI,
 			return;
 		}
 
-		#pragma omp parallel for schedule(static) if(ni * nj > 65536)
-		for (long j = 0; j < nj; ++j) {
+		// Cells that can receive material: the moving cells and their right/lower neighbors (a flux
+		// belongs to the cell on its left/upper side). Sweep the box grown by one on each side.
+		const long uI0 = std::max(0L, sI0 - 1), uI1 = std::min(ni, sI1 + 2), uJ0 = std::max(0L, sJ0 - 1), uJ1 = std::min(nj, sJ1 + 2);
+		const bool wrapI = periodicI && (sI0 == 0 || sI1 == ni - 1), wrapJ = periodicJ && (sJ0 == 0 || sJ1 == nj - 1);
+		const long vI0 = wrapI ? 0 : uI0, vI1 = wrapI ? ni : uI1, vJ0 = wrapJ ? 0 : uJ0, vJ1 = wrapJ ? nj : uJ1;
+
+		#pragma omp parallel for schedule(static) if((vI1 - vI0) * (vJ1 - vJ0) > 65536)
+		for (long j = vJ0; j < vJ1; ++j) {
 			const long row = j * ni;
 			const long rowUp = ((j + nj - 1) % nj) * ni;
-			for (long i = 0; i < ni; ++i) {
+			for (long i = vI0; i < vI1; ++i) {
 				const long k = row + i;
 				const long kLeft = row + (i + ni - 1) % ni;
 				const double fromLeft = (i > 0 || periodicI) ? fluxRight[kLeft] : 0.0;
@@ -518,6 +539,11 @@ void Grid::relaxBuffer(std::vector<double> &z, long ni, long nj, bool periodicI,
 				z[k] += fromLeft + fromUp - fluxRight[k] - fluxDown[k];
 			}
 		}
+
+		// Next iteration: the updated cells and their neighbors. The fluxes of cells that leave the
+		// active box stay zero, because they were zero when written and are not read again.
+		aI0 = wrapI ? 0 : std::max(0L, vI0 - 1); aI1 = wrapI ? ni : std::min(ni, vI1 + 1);
+		aJ0 = wrapJ ? 0 : std::max(0L, vJ0 - 1); aJ1 = wrapJ ? nj : std::min(nj, vJ1 + 1);
 	}
 
 	addLogEntry("WARNING: slope relaxation did not converge within " + std::to_string(maxIterations) + " iterations.", true);
@@ -555,6 +581,28 @@ void Grid::diffuseBuffer(std::vector<double> &z, const std::vector<double> &dose
 	}
 }
 
+void Grid::applyElevationChange(SubsurfColumn &column, double change) {
+	if (change < -kElevationTolerance) {
+		column.removeMaterial(-change);
+	}
+	else if (change > kElevationTolerance) {
+		const Layer top = column.subsurfLayers.back();
+		column.addLayer(Layer(change, top.regolithFraction, top.iceFraction, top.sootFraction));
+	}
+}
+
+void Grid::flushPendingElevation() {
+	for (int j = 0; j < gridSize; ++j) {
+		for (int i = 0; i < gridSize; ++i) {
+			double &pending = pendingElevation[(size_t) j * gridSize + i];
+			if (std::fabs(pending) > kElevationTolerance) {
+				applyElevationChange(subsurfColumns[j][i], pending);
+			}
+			pending = 0.0;
+		}
+	}
+}
+
 void Grid::settleRegion(double xc, double yc, double halfWidth, const std::function<double(double)> *dose, double slopeOfRepose, bool periodicDistance) {
 	const long n = gridSize;
 	// Box in (possibly negative or beyond-the-grid) cell indices, wrapped when the grid is read and written:
@@ -563,52 +611,78 @@ void Grid::settleRegion(double xc, double yc, double halfWidth, const std::funct
 	long j0 = (long) std::floor((yc - halfWidth + regionWidth / 2) / resolution) - 1;
 	long j1 = (long) std::ceil((yc + halfWidth + regionWidth / 2) / resolution) + 1;
 	const bool fullI = (i1 - i0) >= n, fullJ = (j1 - j0) >= n;
-	if (fullI) { i0 = 0; i1 = n; }
-	if (fullJ) { j0 = 0; j1 = n; }
+	// A full-domain box is a cyclic shift of the grid centred on the impact, so the steep cells around
+	// it sit in the middle of the buffer rather than straddling the periodic wrap.
+	if (fullI) { i0 = (long) std::floor((xc + regionWidth / 2) / resolution) - n / 2; i1 = i0 + n; }
+	if (fullJ) { j0 = (long) std::floor((yc + regionWidth / 2) / resolution) - n / 2; j1 = j0 + n; }
 	const long ni = i1 - i0, nj = j1 - j0;
 	if (ni <= 0 || nj <= 0)
 		return;
 	auto wrap = [n](long a) { return ((a % n) + n) % n; };
 
+	double tick = nowSeconds();
+	// Wrapped grid indices of the buffer's columns and rows:
+	std::vector<long> gI(ni), gJ(nj);
+	for (long a = 0; a < ni; ++a) gI[a] = wrap(i0 + a);
+	for (long b = 0; b < nj; ++b) gJ[b] = wrap(j0 + b);
+	const bool large = ni * nj > 65536;
+
 	std::vector<double> z((size_t) ni * nj);
+	#pragma omp parallel for schedule(static) if(large)
 	for (long b = 0; b < nj; ++b) {
-		const long gj = wrap(j0 + b);
+		const std::vector<SubsurfColumn> &row = subsurfColumns[gJ[b]];
+		const double *pendingRow = &pendingElevation[(size_t) gJ[b] * n];
 		for (long a = 0; a < ni; ++a)
-			z[(size_t) b * ni + a] = subsurfColumns[gj][wrap(i0 + a)].getSurfaceElevation();
+			z[(size_t) b * ni + a] = row[gI[a]].getSurfaceElevation() + pendingRow[gI[a]];
 	}
+	settleTimers[0] += nowSeconds() - tick; tick = nowSeconds();
 
 	if (dose != nullptr) {
 		std::vector<double> k((size_t) ni * nj);
+		std::vector<double> dxs(ni);
+		for (long a = 0; a < ni; ++a) {
+			double dx = -regionWidth / 2 + (i0 + a + 0.5) * resolution - xc;
+			if (periodicDistance) dx -= regionWidth * std::round(dx / regionWidth);
+			dxs[a] = dx;
+		}
+		#pragma omp parallel for schedule(static) if(large)
 		for (long b = 0; b < nj; ++b) {
 			double dy = -regionWidth / 2 + (j0 + b + 0.5) * resolution - yc;
 			if (periodicDistance) dy -= regionWidth * std::round(dy / regionWidth);
-			for (long a = 0; a < ni; ++a) {
-				double dx = -regionWidth / 2 + (i0 + a + 0.5) * resolution - xc;
-				if (periodicDistance) dx -= regionWidth * std::round(dx / regionWidth);
-				k[(size_t) b * ni + a] = (*dose)(std::hypot(dx, dy));
-			}
+			for (long a = 0; a < ni; ++a)
+				k[(size_t) b * ni + a] = (*dose)(std::hypot(dxs[a], dy));
 		}
+		settleTimers[1] += nowSeconds() - tick; tick = nowSeconds();
 		diffuseBuffer(z, k, ni, nj, fullI, fullJ, resolution);
+		settleTimers[2] += nowSeconds() - tick; tick = nowSeconds();
 	}
 	relaxBuffer(z, ni, nj, fullI, fullJ, slopeOfRepose, resolution);
+	settleTimers[3] += nowSeconds() - tick; tick = nowSeconds();
 
+	// Apply the changes to the columns; changes below the layer threshold are only accumulated, so
+	// a whole-domain shake does not touch every column for micrometres of movement.
+	const double threshold = std::max(minimumLayerThickness, kElevationTolerance);
+	#pragma omp parallel for schedule(static) if(large)
 	for (long b = 0; b < nj; ++b) {
-		const long gj = wrap(j0 + b);
+		const long gj = gJ[b];
 		for (long a = 0; a < ni; ++a) {
-			SubsurfColumn &column = subsurfColumns[gj][wrap(i0 + a)];
-			const double topoDiff = z[(size_t) b * ni + a] - column.getSurfaceElevation();
-			if (topoDiff < -kElevationTolerance) {
-				column.removeMaterial(-topoDiff);
-			}
-			else if (topoDiff > kElevationTolerance) {
-				const Layer top = column.subsurfLayers.back();
-				column.addLayer(Layer(topoDiff, top.regolithFraction, top.iceFraction, top.sootFraction));
+			const long gi = gI[a];
+			SubsurfColumn &column = subsurfColumns[gj][gi];   // every column is touched by one thread only
+			double &pending = pendingElevation[(size_t) gj * n + gi];
+			const double topoDiff = z[(size_t) b * ni + a] - column.getSurfaceElevation();   // includes the old pending part
+			if (std::fabs(topoDiff) >= threshold) {
+				applyElevationChange(column, topoDiff);
+				pending = 0.0;
+			} else {
+				pending = topoDiff;
 			}
 		}
 	}
 
+	settleTimers[4] += nowSeconds() - tick; tick = nowSeconds();
 	// The settled surface changes the depth of the craters inside the box:
 	updateCraterDepthsWithin(xc, yc, (fullI || fullJ) ? regionWidth : halfWidth * M_SQRT2 + resolution);
+	settleTimers[5] += nowSeconds() - tick;
 }
 
 // Surface modification below the angle of repose (in deg). The elevation changes are applied to

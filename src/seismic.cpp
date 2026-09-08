@@ -41,8 +41,12 @@ double SeismicShaking::range(double d, double v, double rho) {
 }
 
 // Richardson 2009, Eq. 32.
+double SeismicShaking::dosePrefactor(double d, double v) {
+        return Cs * pow(v, Ki_a) * pow(d, Ki_b) * pow(g, Ki_c);
+}
+
 double SeismicShaking::dose(double d, double v, double l, double craterRadius) {
-        return Cs * pow(v, Ki_a) * pow(d, Ki_b) * pow(g, Ki_c) / pow(std::max(l, craterRadius), Ki_d);
+        return dosePrefactor(d, v) * pow(std::max(l, craterRadius), -Ki_d);
 }
 
 void SeismicShaking::settleAfterImpact(Grid &grid, const Crater &crater) {
@@ -56,8 +60,10 @@ void SeismicShaking::settleAfterImpact(Grid &grid, const Crater &crater) {
                 shakes++;
                 if (seismicRange >= regionWidth / 2)
                         wholeDomainShakes++;
-                const double d = crater.projectileDiameter, v = crater.projectileVelocity, R = crater.finalRadius, limit = seismicRange;
-                std::function<double(double)> k = [d, v, R, limit](double l) { return l <= limit ? dose(d, v, l, R) : 0.0; };
+                const double prefactor = dosePrefactor(crater.projectileDiameter, crater.projectileVelocity), R = crater.finalRadius, limit = seismicRange, exponent = -Ki_d;
+                std::function<double(double)> k = Ki_d == 0.5
+                        ? std::function<double(double)>([prefactor, R, limit](double l) { return l <= limit ? prefactor / sqrt(std::max(l, R)) : 0.0; })   // the default exponent, without pow
+                        : std::function<double(double)>([prefactor, R, limit, exponent](double l) { return l <= limit ? prefactor * pow(std::max(l, R), exponent) : 0.0; });
                 grid.settleRegion(crater.xLocation, crater.yLocation, halfWidth, &k, slopeOfRepose, true);
         } else {
                 grid.settleRegion(crater.xLocation, crater.yLocation, halfWidth, nullptr, slopeOfRepose, true);
@@ -74,8 +80,10 @@ void SeismicShaking::shakeFromOutside(Grid &grid, double x, double y, double cra
                 return;
         distantShakes++;
         const double slopeOfRepose = tan(M_PI * angleOfRepose / 180.0);
-        const double limit = seismicRange;
-        std::function<double(double)> k = [d, v, craterRadius, limit](double l) { return l <= limit ? dose(d, v, l, craterRadius) : 0.0; };
+        const double limit = seismicRange, prefactor = dosePrefactor(d, v), exponent = -Ki_d;
+        std::function<double(double)> k = Ki_d == 0.5
+                ? std::function<double(double)>([prefactor, craterRadius, limit](double l) { return l <= limit ? prefactor / sqrt(std::max(l, craterRadius)) : 0.0; })
+                : std::function<double(double)>([prefactor, craterRadius, limit, exponent](double l) { return l <= limit ? prefactor * pow(std::max(l, craterRadius), exponent) : 0.0; });
         // The whole domain, with plain (not periodic) distances from the external impact point:
         grid.settleRegion(x, y, halfDomain, &k, slopeOfRepose, false);
 }
