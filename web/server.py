@@ -86,7 +86,7 @@ AUTH_PASSWORD = os.environ.get("REGOLIT_WEB_PASSWORD", "")
 MAX_GRID_SIDE = 8000
 MAX_GRID_CELLS = MAX_GRID_SIDE * MAX_GRID_SIDE
 MAX_STEPS = 500
-MAX_OUTPUT_BYTES = 20 * 1024 * 1024 * 1024
+MAX_OUTPUT_BYTES = 500 * 1024 * 1024 * 1024
 MAPS_PER_STEP = 7
 MAX_IMPACTS = 20_000_000
 MAX_LAYER_ROWS = 40
@@ -327,8 +327,8 @@ def validate(request: RunRequest) -> Tuple[Dict[str, float], Optional[List[List[
     output_cells = round(width / effective["downsamplingResolution"]) ** 2
     output_bytes = steps * output_cells * MAPS_PER_STEP * 8
     if output_bytes > MAX_OUTPUT_BYTES:
-        raise HTTPException(400, "the run would write {:.0f} MB of maps ({} steps of {:,} cells); the limit is {:.0f} MB. Increase the output interval or the map output resolution.".format(
-            output_bytes / 2**20, steps, int(output_cells), MAX_OUTPUT_BYTES / 2**20))
+        raise HTTPException(400, "the run would write {:.1f} GB of maps ({} steps of {:,} x {:,} cells); the limit is {:.0f} GB. Increase the output interval or the map output resolution.".format(
+            output_bytes / 2**30, steps, int(round(width / effective["downsamplingResolution"])), int(round(width / effective["downsamplingResolution"])), MAX_OUTPUT_BYTES / 2**30))
     impacts = effective["fluxConstant_c"] * effective["minimumImpactorDiameter"] ** (-effective["slope_b"]) * width ** 2 \
         * effective["endTime"] * effective["earthFluxRatioCoefficient"]
     if impacts > MAX_IMPACTS:

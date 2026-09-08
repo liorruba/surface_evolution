@@ -117,7 +117,7 @@ Logs: `journalctl -u regolit-web -f`. Health check: `curl http://127.0.0.1:8010/
 ## Limits
 
 Requests are validated against the ranges in `PARAMETERS` in `server.py`. A run is refused if it
-would exceed 8000 x 8000 cells, 500 output steps, 20 GB of output maps or about twenty million
+would exceed 8000 x 8000 cells, 500 output steps, 500 GB of output maps or about twenty million
 impacts. The region width itself is bounded only through the cell count (up to 1000 km at
 1000 m/pixel). These are sized for the compute machine (16 cores, 125 GB): measured with 8 threads
 over 100 Ma, 2000 x 2000 cells run in 18 s and need 0.8 GB, 4000 x 4000 cells run in 3 min and
