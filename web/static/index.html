@@ -344,20 +344,27 @@
   function renderList() {
     const q = $("filter").value.trim().toLowerCase();
     const list = $("list");
-    list.innerHTML = "";
     const runs = S.runs.filter(r => !q || (r.id + " " + JSON.stringify(r.parameters)).toLowerCase().includes(q));
     $("runCount").textContent = runs.length + (runs.length === 1 ? " run" : " runs");
     if (!runs.length) { list.innerHTML = '<div class="caption" style="padding:8px 4px">No runs yet.</div>'; return; }
+    // Cards are patched in place (keyed by run id) rather than rebuilt: the list refreshes every few seconds while a
+    // run is in progress, and rebuilding it would swallow a click that is under way and reset the scroll position.
+    const existing = {};
+    [...list.children].forEach(el => { if (el.dataset.run) existing[el.dataset.run] = el; else el.remove(); });
+    const keep = new Set(runs.map(r => r.id));
+    Object.keys(existing).forEach(id => { if (!keep.has(id)) { existing[id].remove(); delete existing[id]; } });
+    let cursor = list.firstElementChild;
     runs.forEach(r => {
       const p = r.parameters || {};
-      const card = document.createElement("div");
+      let card = existing[r.id];
+      if (!card) { card = document.createElement("div"); card.dataset.run = r.id; card.title = r.id; card.onclick = () => loadRun(r.id); }
       card.className = "card" + (S.current && S.current.id === r.id ? " on" : "");
-      card.title = r.id;
-      card.innerHTML = '<div class="title"><b>' + (r.test ? testTitle(r.test) + " &middot; " : "") + fmt(p.regionWidth) + ' m &middot; ' + fmt(p.resolution) + ' m/px' + (r.test ? "" : ' &middot; ' + fmt(p.endTime) + ' Ma') + '</b>' +
+      const html = '<div class="title"><b>' + (r.test ? testTitle(r.test) + " &middot; " : "") + fmt(p.regionWidth) + ' m &middot; ' + fmt(p.resolution) + ' m/px' + (r.test ? "" : ' &middot; ' + fmt(p.endTime) + ' Ma') + '</b>' +
         '<small>' + (r.status && r.status !== "done" ? (r.status === "failed" ? "failed" : "in progress") : fmtInt(r.visible_craters) + ' craters') + ' &middot; seed ' + fmt(p.randomSeed) + ' &middot; ' + (r.created || r.id).slice(0, 16) + '</small></div>' +
         statusPill(r.status);
-      card.onclick = () => loadRun(r.id);
-      list.appendChild(card);
+      if (card.innerHTML !== html) card.innerHTML = html;
+      if (card === cursor) cursor = cursor.nextElementSibling;   // already in the right place: leave the node alone
+      else list.insertBefore(card, cursor);
     });
   }
 
@@ -603,7 +610,7 @@
     $("settingsName").value = ""; refreshSettingsList();
     selectComposerTab("setup");
     document.querySelectorAll(".card").forEach(c => c.classList.remove("on"));
-    stopPolling(); show("composer"); window.scrollTo(0, 0);
+    S.loading = null; stopPolling(); show("composer"); window.scrollTo(0, 0);
   }
   async function submitRun() {
     let body;
@@ -620,8 +627,9 @@
 
   // ---------- run view ----------
   async function loadRun(id) {
-    try { const summary = await api("/api/runs/" + encodeURIComponent(id)); showRun(summary); }
-    catch (e) { $("barStatus").innerHTML = '<span style="color:var(--alert)">run ' + id + ' is not available</span>'; }
+    S.loading = id;   // the run clicked last wins, whatever order the responses come back in
+    try { const summary = await api("/api/runs/" + encodeURIComponent(id)); if (S.loading === id) showRun(summary); }
+    catch (e) { if (S.loading === id) $("barStatus").innerHTML = '<span style="color:var(--alert)">run ' + id + ' is not available</span>'; }
   }
   function stopPolling() { clearTimeout(S.pollTimer); S.pollTimer = null; }
   function setPill(status) { const pill = $("runPill"); pill.className = "pill " + (status === "done" ? "ok" : status === "failed" ? "bad" : "busy"); pill.innerHTML = "&#9679; " + status; }
@@ -644,16 +652,22 @@
     $("progressPhase").textContent = status === "failed" ? "" : (summary.phase || "");
     $("progressError").classList.toggle("hide", status !== "failed"); $("progressError").textContent = summary.error || "";
     $("deleteBtn").disabled = status === "running";
+    const stillCurrent = () => S.current && S.current.id === summary.id;
     try {
       const log = await api_text("/api/runs/" + summary.id + "/log?tail=65536");
+      if (!stillCurrent()) return;
       const lines = collapseRepeats(log.trim().split("\n").filter(l => !l.includes("Getting variable")));
       $("progressLog").textContent = lines.slice(-25).join("\n"); $("progressLog").classList.toggle("hide", !lines.length);
-    } catch (e) { $("progressLog").classList.add("hide"); }
+    } catch (e) { if (!stillCurrent()) return; $("progressLog").classList.add("hide"); }
     if (status === "queued" || status === "running") {
+      clearTimeout(S.pollTimer);
       S.pollTimer = setTimeout(async () => {
-        if (!S.current || S.current.id !== summary.id) return;
-        try { const fresh = await api("/api/runs/" + summary.id); if (fresh.status === "done") { refreshRuns(); showRun(fresh); } else { S.current = fresh; showPending(fresh); } }
-        catch (e) { $("runMeta").textContent = "run " + summary.id + " is no longer available"; }
+        if (!stillCurrent()) return;
+        try {
+          const fresh = await api("/api/runs/" + summary.id);
+          if (!stillCurrent()) return;   // the user moved to another run while this poll was in flight
+          if (fresh.status === "done") { refreshRuns(); showRun(fresh); } else { S.current = fresh; showPending(fresh); }
+        } catch (e) { if (stillCurrent()) $("runMeta").textContent = "run " + summary.id + " is no longer available"; }
       }, 2000);
     }
   }
@@ -671,7 +685,7 @@
     return out;
   }
   function showRun(summary) {
-    S.current = summary;
+    S.current = summary; S.loading = summary.id;
     stopPlaying(); stopPolling();
     const p = summary.parameters;
     const test = (summary.presets || {}).test;
