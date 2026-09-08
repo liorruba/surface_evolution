@@ -353,7 +353,7 @@
       card.className = "card" + (S.current && S.current.id === r.id ? " on" : "");
       card.title = r.id;
       card.innerHTML = '<div class="title"><b>' + (r.test ? testTitle(r.test) + " &middot; " : "") + fmt(p.regionWidth) + ' m &middot; ' + fmt(p.resolution) + ' m/px' + (r.test ? "" : ' &middot; ' + fmt(p.endTime) + ' Ma') + '</b>' +
-        '<small>' + fmtInt(r.visible_craters) + ' craters &middot; seed ' + fmt(p.randomSeed) + ' &middot; ' + (r.created || r.id).slice(0, 16) + '</small></div>' +
+        '<small>' + (r.status && r.status !== "done" ? (r.status === "failed" ? "failed" : "in progress") : fmtInt(r.visible_craters) + ' craters') + ' &middot; seed ' + fmt(p.randomSeed) + ' &middot; ' + (r.created || r.id).slice(0, 16) + '</small></div>' +
         statusPill(r.status);
       card.onclick = () => loadRun(r.id);
       list.appendChild(card);
