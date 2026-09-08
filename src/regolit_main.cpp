@@ -356,6 +356,7 @@ int main() {
                 // Test mode: print the initial surface, then form one prescribed crater (impactor from
                 // the inverse scaling) with its ejecta, ghosts and secondaries; the final print follows.
                 grid.flushPendingElevation();
+                grid.refreshCraterDepths();
                 grid.printSurface(printIndex, false);
                 grid.printIntegratedSubsurface(depthToIntegrate, printIndex);
                 if (isPrintSubsurface == 1)
@@ -397,6 +398,7 @@ int main() {
                 if (i % numberOfCratersInTimestep == 0) {
                         // Print the surface, the integrated subsurface and (optionally) the full subsurface:
                         grid.flushPendingElevation();
+                grid.refreshCraterDepths();
                 grid.printSurface(printIndex, false);
                         grid.printIntegratedSubsurface(depthToIntegrate, printIndex);
 
@@ -437,6 +439,7 @@ int main() {
         grid.sublimateIce(); // Sublimate ice one last time
         grid.thresholdSlopes(angleOfRepose);
         grid.flushPendingElevation();
+                grid.refreshCraterDepths();
         grid.printSurface(printIndex, true);
         grid.printIntegratedSubsurface(depthToIntegrate, printIndex);
         

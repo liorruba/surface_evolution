@@ -52,6 +52,7 @@ void thresholdSlopes(double angleOfRepose);
 // (periodic minimum-image distances when periodicDistance, plain distances otherwise), then the
 // collapse of slopes above slopeOfRepose (rise over run). The changes are applied to the columns.
 void updateCraterDepthsWithin(double x, double y, double reach);
+void refreshCraterDepths();   // re-read the floor elevation of every visible crater (after whole-domain shakes)
 void flushPendingElevation();   // apply every pending settling change (before output)
 static double settleTimers[6];  // seconds spent in settleRegion: copy, dose, diffusion, relaxation, apply, crater update (for the log)
 static void applyElevationChange(SubsurfColumn &column, double change);

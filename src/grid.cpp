@@ -327,6 +327,21 @@ void Grid::updateExistingCratersDepth(const Crater &crater) {
 	updateCraterDepthsWithin(crater.xLocation, crater.yLocation, 2 * crater.finalRadius);
 }
 
+void Grid::refreshCraterDepths() {
+	for (size_t id = 0; id < craters.size(); ++id) {
+		CraterRecord &record = craters[id];
+		if (!record.isVisible)
+			continue;
+		const double newFloorElevation = getSurfaceElevationAtPoint(record.x, record.y);
+		record.finalDepth -= (newFloorElevation - record.floorElevation);
+		record.floorElevation = newFloorElevation;
+		if (std::fabs(record.finalDepth - record.finalDepth_init) / record.finalDepth_init > 0.5) {
+			record.isVisible = false;
+			craterIndex.remove(id, record.x, record.y);
+		}
+	}
+}
+
 // Re-read the floor elevation of the visible craters within `reach` of (x, y) and update their depths.
 void Grid::updateCraterDepthsWithin(double x, double y, double reach) {
 	for (size_t id : craterIndex.candidatesWithin(x, y, reach)) {
@@ -680,8 +695,12 @@ void Grid::settleRegion(double xc, double yc, double halfWidth, const std::funct
 	}
 
 	settleTimers[4] += nowSeconds() - tick; tick = nowSeconds();
-	// The settled surface changes the depth of the craters inside the box:
-	updateCraterDepthsWithin(xc, yc, (fullI || fullJ) ? regionWidth : halfWidth * M_SQRT2 + resolution);
+	// The settled surface changes the depth of the craters inside the box. A whole-domain shake would
+	// mean re-reading every crater record, so those are refreshed at the output steps instead
+	// (refreshCraterDepths); the visibility flag only matters there and for the index.
+	if (!(fullI || fullJ)) {
+		updateCraterDepthsWithin(xc, yc, halfWidth * M_SQRT2 + resolution);
+	}
 	settleTimers[5] += nowSeconds() - tick;
 }
 
