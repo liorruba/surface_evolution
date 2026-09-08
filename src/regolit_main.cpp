@@ -64,6 +64,7 @@ double secondaryVelocityExponent; // Largest fragment shrinks with ejection spee
 double maximumSecondariesPerPrimary; // Budget: only the largest N secondaries of a primary are formed
 bool isEmplaceDistantSecondaries; // Sample primaries outside the domain and form the fragments they send in
 double secondaryMaximumRange; // Distance beyond the domain edge out to which distant primaries are sampled, m
+int histogramBinsPerDecade;
 double testCraterDiameter; // Test mode: form one crater of this final diameter (m) instead of the random population (0 = off)
 double testCraterX; // Test crater center, m from the domain center
 double testCraterY;
@@ -179,6 +180,7 @@ int main() {
         isEmplaceDistantSecondaries = setVariableOptional(varList, "isEmplaceDistantSecondaries", 0.0) != 0;
         secondaryMaximumRange = setVariableOptional(varList, "secondaryMaximumRange", 100000.0);
         testCraterDiameter = setVariableOptional(varList, "testCraterDiameter", 0.0);
+        histogramBinsPerDecade = (int) setVariableOptional(varList, "histogramBinsPerDecade", 20.0);
         // Ice and soot processes. Off: no deposition or sublimation, and the ejecta keeps the composition
         // of the excavated material (ice and soot are passive tracers of the initial layers).
         isVolatiles = setVariableOptional(varList, "isVolatiles", 0.0) != 0;
@@ -295,9 +297,9 @@ int main() {
         }
 
         // Craters and impactors histograms:
-        Histogram cratersHistogram(minimumImpactorDiameter * 10, regionWidth, 20); // Crater histogram from 10*minimumImpactorDiameter to regionWidth meters
-        Histogram impactorsHistogram(minimumImpactorDiameter, 1e4, 20); // Impactor histogram from minimumImpactorDiameter m to 10 km
-        Histogram cratersDepthHistogram(minimumImpactorDiameter, 1e4, 20); // Depth histogram of the visible craters at the end of the run
+        Histogram cratersHistogram(minimumImpactorDiameter * 10, regionWidth, histogramBinsPerDecade); // Crater histogram from 10*minimumImpactorDiameter to regionWidth meters
+        Histogram impactorsHistogram(minimumImpactorDiameter, 1e4, histogramBinsPerDecade); // Impactor histogram from minimumImpactorDiameter m to 10 km
+        Histogram cratersDepthHistogram(minimumImpactorDiameter, 1e4, histogramBinsPerDecade); // Depth histogram of the visible craters at the end of the run
 
         // Forms a primary on the grid with its periodic ghosts and its secondaries.
         auto formPrimary = [&](const Impactor &impactor, Crater &crater) {
@@ -443,7 +445,7 @@ int main() {
         }
 
         grid.printExistingCraters();
-        grid.printExistingCratersToHistogram(20);
+        grid.printExistingCratersToHistogram(histogramBinsPerDecade);
         addLogEntry("Number of visible craters at the end of the simulation: " + std::to_string(grid.numberOfVisibleCraters()) + ".", true);
 
         // Depth histogram of the craters that are still visible, with their current (degraded) depths:

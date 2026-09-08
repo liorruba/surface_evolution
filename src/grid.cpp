@@ -822,7 +822,7 @@ void Grid::printSubsurface(int index){
 }
 
 // Print the visible craters to a histogram:
-void Grid::printExistingCratersToHistogram(double bins){
+void Grid::printExistingCratersToHistogram(double bins){   // bins: log bins per decade
 	addLogEntry("Printing craters histogram.", false);
 	Histogram hist(minimumImpactorDiameter * 10, regionWidth, (int) bins);
 

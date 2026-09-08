@@ -1,13 +1,15 @@
 #pragma once
 #include <vector>
 
-// This file creates and manipulates a histogram "object".
+// Log-binned histogram: bins[k] <= value < bins[k+1] is counted in counts[k]; a fixed number of bins per decade.
 class Histogram {
   std::vector<double> bins;
-  std::vector<int> counts;
+  std::vector<long> counts;
+  double logMin;
+  double logStep;
 
   public:
-    Histogram(double minBin, double maxBin, int numOfBins);
+    Histogram(double minBin, double maxBin, int binsPerDecade);
     void add(double val);
     void print(const char *path);
 };

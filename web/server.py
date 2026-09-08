@@ -846,47 +846,105 @@ def render_section(run_id: str, axis: str, at: float, depth: float, step: int) -
     return buffer.getvalue()
 
 
-def render_histograms(run_id: str) -> Path:
-    target = run_dir(run_id) / "cache" / "histograms.png"
+FIGURE_NAMES = ("sizes", "depths")
+
+
+def cumulative_from_histogram(bins: np.ndarray, counts: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """N(>= bin edge) from per-bin counts; only the edges from the first to the last populated bin."""
+    populated = np.nonzero(counts)[0]
+    if not len(populated):
+        return np.array([]), np.array([])
+    cumulative = np.cumsum(counts[::-1])[::-1]
+    lo, hi = populated[0], populated[-1] + 1
+    return bins[lo:hi + 1], np.append(cumulative[lo:hi], 0)[: hi + 1 - lo]
+
+
+def render_figure(run_id: str, name: str, scale: int = 1) -> Path:
+    """The size or depth distributions of a run as lines (scale 2 = the high-resolution version)."""
+    if name not in FIGURE_NAMES:
+        raise HTTPException(404, "unknown figure")
+    target = run_dir(run_id) / "cache" / "{}_{}x.png".format(name, scale)
     if target.exists():
         return target
     out = output_of(run_id)
+    summary = load_summary(run_id)
+    area_km2 = summary["parameters"]["regionWidth"] ** 2 / 1e6
+    craters = out.craters()
     with PLOT_LOCK:
-        fig = themed_figure(WIDE_FIG_SIZE)
-        axes = [fig.add_axes((0.07, 0.19, 0.40, 0.69)), fig.add_axes((0.585, 0.19, 0.40, 0.69))]
+        fig = themed_figure(WIDE_FIG_SIZE, dpi=MAP_DPI * scale)
+        axes = [fig.add_axes((0.075, 0.19, 0.395, 0.69)), fig.add_axes((0.585, 0.19, 0.395, 0.69))]
         for ax in axes:
             style_axes(ax)
-        styles = [("craters", THEME["accent"], "-", 2.2, "craters formed"), ("existing_craters", "#7ed0a8", "--", 1.4, "craters visible at the end"), ("impactors", "#79a6ff", "-", 1.4, "impactors")]
-        upper = 1.0
-        for name, color, style, width, label in styles:
-            bins, counts = out.histogram(name)
-            axes[0].step(bins, np.maximum(counts, 0.5), where="post", color=color, ls=style, lw=width, label=label)
-            if counts.any():
-                top = np.nonzero(counts)[0].max() + 1
-                upper = max(upper, bins[top] if top < len(bins) else bins[-1])
-        axes[0].set_xlim(bins[0] * 0.8, upper * 3)
-        axes[0].set_xscale("log")
-        axes[0].set_yscale("log")
-        axes[0].set_xlabel("diameter [m]")
-        axes[0].set_ylabel("count per bin")
-        axes[0].set_title("Size distributions", fontsize=10)
-        legend = axes[0].legend(fontsize=8, facecolor=THEME["figure"], edgecolor=THEME["grid"], labelcolor=THEME["ink"])
-        legend.get_frame().set_alpha(0.9)
-        bins, counts = out.histogram("depth")
-        axes[1].step(bins, np.maximum(counts, 0.5), where="post", color="#f08a7a")
-        if counts.any():
-            top = np.nonzero(counts)[0].max() + 1
-            axes[1].set_xlim(bins[0] * 0.8, (bins[top] if top < len(bins) else bins[-1]) * 3)
-        axes[1].set_xscale("log")
-        axes[1].set_yscale("log")
-        axes[1].set_xlabel("current depth [m]")
-        axes[1].set_ylabel("count per bin")
-        axes[1].set_title("Depths of visible craters", fontsize=10)
-        for ax in axes:
+            ax.set_xscale("log")
+            ax.set_yscale("log")
             ax.grid(alpha=0.15, color=THEME["muted"], which="both")
+        if name == "sizes":
+            series = []   # (label, color, style, width, edges, per-bin counts)
+            for key, color, style, width, label in [("impactors", "#79a6ff", "-", 1.3, "impactors"), ("craters", THEME["accent"], "-", 2.0, "craters formed")]:
+                bins, counts = out.histogram(key)
+                series.append((label, color, style, width, bins, counts.astype(float)))
+            # The visible craters are listed one by one, so their distribution needs no bins:
+            visible = np.sort(np.asarray(craters["diameter"], dtype=float))
+            bins_all = series[1][4]
+            visible_counts, _ = np.histogram(visible, bins=bins_all)
+            series.append(("craters visible at the end", "#7ed0a8", "--", 1.4, bins_all, np.append(visible_counts, 0).astype(float)))
+            lo, hi = np.inf, 0.0
+            for label, color, style, width, bins, counts in series:
+                edges, cumulative = cumulative_from_histogram(bins, counts)
+                if len(edges):
+                    axes[0].plot(edges[:-1], cumulative[:-1] / area_km2, color=color, ls=style, lw=width, label=label)
+                    centers = np.sqrt(bins[:-1] * bins[1:])
+                    mask = counts[:-1] > 0
+                    axes[1].plot(centers[mask], counts[:-1][mask], color=color, ls=style, lw=width, marker="." if scale > 1 else None, ms=3)
+                    lo, hi = min(lo, edges[0]), max(hi, edges[-1])
+            if len(visible):
+                axes[0].plot(visible, np.arange(len(visible), 0, -1) / area_km2, color="#7ed0a8", ls=":", lw=1.0, label="visible, exact (one point per crater)")
+            if np.isfinite(lo) and hi > 0:
+                for ax in axes:
+                    ax.set_xlim(lo * 0.8, hi * 1.5)
+            axes[0].set_xlabel("diameter [m]")
+            axes[0].set_ylabel("N(> D) per km²")
+            axes[0].set_title("Cumulative size distributions", fontsize=10)
+            axes[1].set_xlabel("diameter [m]")
+            axes[1].set_ylabel("count per bin ({} bins per decade)".format(int(round(1 / np.log10(bins_all[1] / bins_all[0]))) if len(bins_all) > 1 else "?"))
+            axes[1].set_title("Differential size distributions", fontsize=10)
+            legend = axes[0].legend(fontsize=7.5, facecolor=THEME["figure"], edgecolor=THEME["grid"], labelcolor=THEME["ink"], loc="lower left")
+            legend.get_frame().set_alpha(0.9)
+        else:
+            depth = np.asarray(craters["depth"], dtype=float)
+            initial = np.asarray(craters["initial_depth"], dtype=float)
+            diameter = np.asarray(craters["diameter"], dtype=float)
+            if len(depth):
+                positive = depth[depth > 0]
+                edges = np.logspace(np.log10(max(positive.min(), 1e-3)), np.log10(positive.max() * 1.01), 20 * max(1, int(np.ceil(np.log10(positive.max() / max(positive.min(), 1e-3))))) + 1) if len(positive) else np.array([1e-3, 1])
+                counts, _ = np.histogram(positive, bins=edges)
+                centers = np.sqrt(edges[:-1] * edges[1:])
+                mask = counts > 0
+                axes[0].plot(centers[mask], counts[mask], color="#f08a7a", lw=1.6, label="current depth")
+                counts0, _ = np.histogram(initial[initial > 0], bins=edges)
+                mask0 = counts0 > 0
+                axes[0].plot(centers[mask0], counts0[mask0], color=THEME["accent"], lw=1.2, ls="--", label="depth at formation")
+                ratio = depth / np.maximum(diameter, 1e-9)
+                axes[1].set_xscale("linear")
+                axes[1].set_yscale("linear")
+                redges = np.linspace(0, max(0.25, float(np.percentile(ratio, 99.5)) * 1.05), 60)
+                rcounts, _ = np.histogram(ratio, bins=redges)
+                axes[1].plot(0.5 * (redges[:-1] + redges[1:]), rcounts, color="#f08a7a", lw=1.6)
+                axes[1].set_xlabel("depth / diameter of the visible craters")
+                axes[1].set_ylabel("count per bin")
+                axes[1].set_title("Degradation state", fontsize=10)
+                legend = axes[0].legend(fontsize=7.5, facecolor=THEME["figure"], edgecolor=THEME["grid"], labelcolor=THEME["ink"])
+                legend.get_frame().set_alpha(0.9)
+            axes[0].set_xlabel("depth [m]")
+            axes[0].set_ylabel("count per bin (20 bins per decade)")
+            axes[0].set_title("Depths of the visible craters", fontsize=10)
         atomic_savefig(fig, target)
         plt.close(fig)
     return target
+
+
+def render_histograms(run_id: str) -> Path:   # kept for older links
+    return render_figure(run_id, "sizes", 1)
 
 
 def render_animation(run_id: str, kind: str) -> Path:
@@ -1181,6 +1239,11 @@ async def get_section(run_id: str, axis: str = Query("x", pattern="^[xy]$"), at:
 @app.get("/api/runs/{run_id}/histograms.png")
 async def get_histograms(run_id: str) -> FileResponse:
     return FileResponse(str(await asyncio.to_thread(not_found_if_deleted, render_histograms, run_id)), media_type="image/png")
+
+
+@app.get("/api/runs/{run_id}/figure/{name}.png")
+async def get_figure(run_id: str, name: str, scale: int = Query(1, ge=1, le=3)) -> FileResponse:
+    return FileResponse(str(await asyncio.to_thread(not_found_if_deleted, render_figure, run_id, name, scale)), media_type="image/png")
 
 
 @app.get("/api/runs/{run_id}/animation/{kind}.gif")

@@ -140,6 +140,9 @@
   .estimate b{color:var(--ink);font-family:var(--mono);font-weight:600}
   .row.preset{grid-template-columns:1fr 200px}
   .row.preset select{font-family:var(--sans)}
+  .zoomable{cursor:zoom-in}
+  .lightbox{position:fixed;inset:0;background:rgba(6,9,14,.92);display:flex;align-items:center;justify-content:center;z-index:50;cursor:zoom-out;padding:24px}
+  .lightbox img{max-width:100%;max-height:100%;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
   .settings-bar{margin-top:10px;padding-top:12px;border-top:1px solid var(--edge);flex-wrap:wrap}
   .settings-bar select,.settings-bar input{background:var(--shell);border:1px solid var(--edge);border-radius:7px;padding:7px 9px;font-size:13px}
   .settings-bar select{min-width:200px}
@@ -274,8 +277,10 @@
       </div>
 
       <div id="tab-figures" class="tab hide">
-        <div class="panel" style="margin-top:0"><img id="histograms" alt="histograms"><div class="caption">Size distributions of the impactors, of all craters formed and of those still visible at the end (depth changed by less than 50%), and the current depths of the visible craters.</div></div>
+        <div class="panel" style="margin-top:0"><img id="figSizes" class="zoomable" alt="size distributions" title="click to enlarge"><div class="caption">Size distributions: cumulative N(&gt;D) per km² of the impactors, of all craters formed and of those still visible at the end (depth changed by less than 50%), and the counts per log bin. Click for a high-resolution version.</div></div>
+        <div class="panel"><img id="figDepths" class="zoomable" alt="depth distributions" title="click to enlarge"><div class="caption">Depths of the visible craters: current depth against the depth at formation, and their depth/diameter ratios (fresh craters sit at the input ratio; degraded ones move left). Click for a high-resolution version.</div></div>
       </div>
+      <div id="lightbox" class="lightbox hide" title="click to close"><img id="lightboxImg" alt="enlarged figure"></div>
 
       <div id="tab-setup" class="tab hide">
         <div class="duo">
@@ -769,7 +774,15 @@
       $("section").src = "/api/runs/" + S.current.id + "/section.png?axis=" + S.axis + "&at=" + S.at + "&depth=" + S.depth + "&step=" + S.step;
     }, 120);
   }
-  function refreshHistograms() { $("histograms").src = "/api/runs/" + S.current.id + "/histograms.png"; }
+  function refreshHistograms() {
+    $("figSizes").src = "/api/runs/" + S.current.id + "/figure/sizes.png";
+    $("figDepths").src = "/api/runs/" + S.current.id + "/figure/depths.png";
+  }
+  function openLightbox(name) {
+    $("lightboxImg").src = "/api/runs/" + S.current.id + "/figure/" + name + ".png?scale=2";
+    $("lightbox").classList.remove("hide");
+  }
+  function closeLightbox() { $("lightbox").classList.add("hide"); $("lightboxImg").src = ""; }
   function renderSetup(s) {
     const presets = s.presets || {};
     const presetRows = "<tr><td>Target body</td><td>" + ((S.meta.bodies[presets.body] || {}).label || "custom") + "</td></tr>" +
@@ -834,6 +847,10 @@
     document.querySelectorAll(".tabs button[data-tab]").forEach(b => b.onclick = () => selectTab(b.dataset.tab));
     document.querySelectorAll("#ctabs button").forEach(b => b.onclick = () => selectComposerTab(b.dataset.ctab));
     renderTests();
+    $("figSizes").onclick = () => openLightbox("sizes");
+    $("figDepths").onclick = () => openLightbox("depths");
+    $("lightbox").onclick = closeLightbox;
+    document.addEventListener("keydown", e => { if (e.key === "Escape") closeLightbox(); });
     $("editBtn").onclick = () => openComposer(S.current.parameters, S.current.layers, Object.assign({ body: "custom", production_function: "power_law", basement_auto: false }, S.current.presets || {}));
     $("deleteBtn").onclick = deleteCurrent;
     await refreshRuns();
