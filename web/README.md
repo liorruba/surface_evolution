@@ -39,7 +39,8 @@ On the compute machine, as your user (the machine's SSH key must be authorized o
 WEB_USER=regolith WEB_PASSWORD='moon' PORT=8030 DROPLET=root@192.241.128.158 bash deploy/mediator/setup_mediator.sh
 ```
 
-This installs two systemd user units, `regolit-web` and `regolit-tunnel`, enables them at boot
+Add `RUNS_DIR=/Data/liorr/regolit/runs MAX_DISK_GB=2000` to keep the runs on the data disk (this is
+the live configuration on Haworth). This installs two systemd user units, `regolit-web` and `regolit-tunnel`, enables them at boot
 (`loginctl enable-linger` keeps them running without a login session) and stores the credentials in
 `~/.config/regolit/web.env`. On the droplet, as root, install only the nginx site:
 

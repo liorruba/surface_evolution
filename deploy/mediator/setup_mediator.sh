@@ -5,6 +5,8 @@
 #
 #   WEB_USER=regolith WEB_PASSWORD='moon' PORT=8030 DROPLET=root@192.241.128.158 bash deploy/mediator/setup_mediator.sh
 #
+# RUNS_DIR chooses where the runs are stored (default runs/web in the repository; on Haworth
+# /Data/liorr/regolit/runs on the 20 TB data disk) and MAX_DISK_GB the disk budget for them.
 # Re-running updates the units and the environment (credentials are kept if not given).
 # Requirements: python3-venv, make, g++, an SSH key on this machine authorized on the droplet.
 set -euo pipefail
@@ -16,24 +18,26 @@ WEB_USER="${WEB_USER:-}"
 WEB_PASSWORD="${WEB_PASSWORD:-}"
 UNIT_DIR="$HOME/.config/systemd/user"
 ENV_FILE="$HOME/.config/regolit/web.env"
+RUNS_DIR="${RUNS_DIR:-$APP_DIR/runs/web}"
+MAX_DISK_GB="${MAX_DISK_GB:-200}"
 
 echo "==> model binary and Python environment ($APP_DIR)"
 make -s -C "$APP_DIR"
 [[ -d "$APP_DIR/venv" ]] || python3 -m venv "$APP_DIR/venv"
 "$APP_DIR/venv/bin/pip" install --quiet --upgrade pip
 "$APP_DIR/venv/bin/pip" install --quiet -r "$APP_DIR/web/requirements.txt"
-mkdir -p "$APP_DIR/runs/web"
+mkdir -p "$RUNS_DIR"
 
 echo "==> environment ($ENV_FILE)"
 mkdir -p "$(dirname "$ENV_FILE")"
 if [[ -n "$WEB_USER" || ! -f "$ENV_FILE" ]]; then
   {
     echo "REGOLIT_BINARY=$APP_DIR/build/apps/regolit_main.run"
-    echo "REGOLIT_WEB_RUNS=$APP_DIR/runs/web"
+    echo "REGOLIT_WEB_RUNS=$RUNS_DIR"
     echo "REGOLIT_WEB_CONCURRENCY=4"
     echo "REGOLIT_WEB_TIMEOUT=600"
     echo "REGOLIT_WEB_MAX_RUNS=500"
-    echo "REGOLIT_WEB_MAX_DISK_GB=200"
+    echo "REGOLIT_WEB_MAX_DISK_GB=$MAX_DISK_GB"
     if [[ -n "$WEB_USER" ]]; then
       echo "REGOLIT_WEB_USER=$WEB_USER"
       echo "REGOLIT_WEB_PASSWORD=$WEB_PASSWORD"
