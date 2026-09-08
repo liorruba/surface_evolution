@@ -258,6 +258,7 @@ TESTS: List[Dict] = [
                          initialThickness=1000, isEmplaceSecondaries=1, isEmplaceDistantSecondaries=0,
                          testCraterDiameter=1000, testCraterX=0, testCraterY=0, angleOfRepose=35,
                          **{key: scaling.BODIES["moon"][key] for key in scaling.BODY_FIELDS}),
+         layers=[[0, 20, 1, 0, 0]],   # regolith only
          presets=dict(body="moon", production_function="power_law", basement_auto=False, test="single_crater_secondaries")),
 ]
 
