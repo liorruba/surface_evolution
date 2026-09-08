@@ -979,8 +979,17 @@ def render_figure(run_id: str, name: str, scale: int = 1) -> Path:
             axes[0].yaxis.set_minor_formatter(NullFormatter())
             low, high = axes[0].get_ylim()
             axes[0].set_ylim(10 ** np.floor(np.log10(max(low, 1e-6))), 10 ** np.ceil(np.log10(max(high, 0.5))))
-            axes[0].axhline(0.3, color=THEME["muted"], lw=0.8, ls=":"); axes[0].axhline(0.03, color=THEME["muted"], lw=0.8, ls=":")
-            axes[0].text(axes[0].get_xlim()[0] * 1.3 if axes[0].get_xlim()[0] > 0 else 1, 0.32, "geometric saturation 10% / 1%", fontsize=6.5, color=THEME["muted"])
+            # Geometric saturation (Gault 1970: N = 1.54 D^-2 per unit area, i.e. R = 3.08) and the empirical
+            # saturation band at 10% and 1% of it (Hartmann; Richardson 2009).
+            geometric = 3.08
+            low, high = axes[0].get_ylim()
+            axes[0].set_ylim(low, max(high, geometric * 2))
+            axes[0].axhline(geometric, color=THEME["muted"], lw=0.9, ls="--")
+            axes[0].axhline(0.1 * geometric, color=THEME["muted"], lw=0.8, ls=":"); axes[0].axhline(0.01 * geometric, color=THEME["muted"], lw=0.8, ls=":")
+            x_text = axes[0].get_xlim()[0] * 1.15
+            axes[0].text(x_text, geometric * 1.1, "geometric saturation", fontsize=6.5, color=THEME["muted"])
+            axes[0].text(x_text, 0.1 * geometric * 1.1, "10% (empirical saturation)", fontsize=6.5, color=THEME["muted"])
+            axes[0].text(x_text, 0.01 * geometric * 1.1, "1%", fontsize=6.5, color=THEME["muted"])
             axes[0].set_xlabel("crater diameter [m]"); axes[0].set_ylabel("R"); axes[0].set_title("R-plot (√2 bins)", fontsize=10)
             axes[1].set_xlabel("crater diameter [m]"); axes[1].set_ylabel("count per √2 bin"); axes[1].set_title("Counts per √2 bin", fontsize=10)
             legend = axes[0].legend(loc="lower left", **legend_kwargs); legend.get_frame().set_alpha(0.9)
