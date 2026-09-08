@@ -34,6 +34,9 @@ extern double secondaryVelocityExponent; // Largest fragment shrinks with ejecti
 extern double maximumSecondariesPerPrimary; // Budget: only the largest N secondaries of a primary are formed
 extern bool isEmplaceDistantSecondaries; // Sample primaries outside the domain and form the fragments they send in
 extern double secondaryMaximumRange; // Distance beyond the domain edge out to which distant primaries are sampled, m
+extern double testCraterDiameter; // Test mode: form one crater of this final diameter (m) instead of the random population (0 = off)
+extern double testCraterX; // Test crater center, m from the domain center
+extern double testCraterY;
 extern double iceDensity; // The density of ice
 extern double regolithDensity; // The density of regolith
 extern double sootDensity; // The density of "soot"

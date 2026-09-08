@@ -41,6 +41,10 @@ already divides the transient cavity into launch annuli with an ejection speed a
   into the domain are formed. This supplies the background of distant secondaries that dominates the
   small-crater population near large primaries.
 
+A test mode forms a single prescribed crater instead of the random population: `testCraterDiameter`
+(final diameter, m; 0 = off) at (`testCraterX`, `testCraterY`), with its ejecta, ghosts and
+secondaries; the surface is printed before and after it (two output steps).
+
 Ballistics are flat-surface at the Z-model launch angles; fragments' landing speed equals their
 ejection speed (no atmosphere), and the crater scaling uses the full landing speed.
 

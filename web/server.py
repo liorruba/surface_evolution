@@ -173,6 +173,11 @@ PARAMETERS: List[Dict] = [
          description="Also sample the primaries that form outside the domain and form the fragments they send in."),
     dict(group="Secondary craters", name="secondaryMaximumRange", label="Distant primaries out to", unit="m", min=1000, max=3_000_000, kind="number", depends="isEmplaceDistantSecondaries",
          description="Distance beyond the domain edge out to which distant primaries are sampled."),
+    # Test mode (not shown in the setup form; set by the Tests tab and kept by "Edit & run again"):
+    dict(group="Test", name="testCraterDiameter", label="Test crater diameter", unit="m", min=0, max=100_000, kind="number", hidden=True,
+         description="Form one crater of this final diameter instead of the random population (0 = off)."),
+    dict(group="Test", name="testCraterX", label="Test crater x", unit="m", min=-500_000, max=500_000, kind="number", hidden=True, description=""),
+    dict(group="Test", name="testCraterY", label="Test crater y", unit="m", min=-500_000, max=500_000, kind="number", hidden=True, description=""),
     dict(group="Subsurface", name="initialThickness", label="Basement thickness", unit="m", min=1, max=10000, kind="number", auto="basement",
          description="Automatic: the initial layers plus three times the depth of the largest expected crater. Untick to override."),
     dict(group="Subsurface", name="depthToIntegrate", label="Integration depth", unit="m", min=0.005, max=100, kind="number",
@@ -242,7 +247,19 @@ class SettingsRequest(RunRequest):
     name: str = Field(min_length=1, max_length=80)
 
 
-PRESET_KEYS = {"body": str, "production_function": str, "basement_auto": bool}
+PRESET_KEYS = {"body": str, "production_function": str, "basement_auto": bool, "test": str}
+
+# Predefined test scenarios (the Tests tab of the setup page). Parameters not listed keep the defaults.
+TESTS: List[Dict] = [
+    dict(id="single_crater_secondaries", title="A 1 km crater with secondaries",
+         summary="10 km domain at 4 m/pixel. One 1 km crater at the centre, Moon parameters, with its ejecta blanket "
+                 "and the secondary craters formed by its fragments. Two steps: before and after.",
+         parameters=dict(regionWidth=10000, resolution=4, downsamplingResolution=4, endTime=1, printTimeStep=1,
+                         initialThickness=1000, isEmplaceSecondaries=1, isEmplaceDistantSecondaries=0,
+                         testCraterDiameter=1000, testCraterX=0, testCraterY=0, angleOfRepose=35,
+                         **{key: scaling.BODIES["moon"][key] for key in scaling.BODY_FIELDS}),
+         presets=dict(body="moon", production_function="power_law", basement_auto=False, test="single_crater_secondaries")),
+]
 
 
 def clean_presets(presets: Optional[Dict[str, object]]) -> Dict[str, object]:
@@ -501,7 +518,11 @@ def finalize(run_id: str, summary: Dict, started: float) -> Dict:
     workdir = RUNS_DIR / run_id
     out = RegolitOutput(workdir)
     series = out.elevation_series()
-    match = re.search(r"Number of craters in simulation: (\d+)", out.log())
+    log_text = out.log()
+    match = re.search(r"Number of craters in simulation: (\d+)", log_text)
+    secondaries = re.search(r"Secondary craters: (\d+) from \d+ primaries inside the domain(?:, (\d+) from \d+ distant primaries)?", log_text)
+    secondary_count = (int(secondaries.group(1)) + int(secondaries.group(2) or 0)) if secondaries else 0
+    test_crater = 1 if float(out.config.get("testCraterDiameter", 0) or 0) > 0 else 0
 
     # Store the final layer stacks compactly (the raw file is large) and drop the raw file.
     has_subsurface = False
@@ -527,7 +548,9 @@ def finalize(run_id: str, summary: Dict, started: float) -> Dict:
         "extent": out.extent,
         "elevation_min": float(series.min()),
         "elevation_max": float(series.max()),
-        "total_craters": int(match.group(1)) if match else None,
+        "total_craters": (int(match.group(1)) + test_crater + secondary_count) if match else None,
+        "primary_craters": (int(match.group(1)) + test_crater) if match else None,
+        "secondary_craters": secondary_count,
         "visible_craters": int(len(out.craters()["x"])),
         "has_subsurface": has_subsurface,
     })
@@ -582,6 +605,7 @@ def list_runs() -> List[Dict]:
             continue
         item = {key: summary.get(key) for key in ("id", "status", "error", "created", "duration_s", "grid", "resolution", "total_craters", "visible_craters")}
         item["status"] = item["status"] or "done"
+        item["test"] = (summary.get("presets") or {}).get("test")
         item["parameters"] = {key: summary.get("parameters", {}).get(key) for key in ("regionWidth", "resolution", "endTime", "randomSeed")}
         runs.append(item)
     runs.sort(key=lambda item: item["id"], reverse=True)
@@ -966,6 +990,7 @@ async def meta() -> Dict:
         "map_kinds": {k: v[0] for k, v in MAP_KINDS.items()},
         "default_kind": "shaded_relief",
         "map_geometry": map_geometry(),
+        "tests": TESTS,
         "limits": {"max_grid_cells": MAX_GRID_CELLS, "max_steps": MAX_STEPS, "max_output_mb": MAX_OUTPUT_BYTES // 2**20, "max_impacts": MAX_IMPACTS, "max_layer_rows": MAX_LAYER_ROWS},
     }
 

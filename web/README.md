@@ -44,6 +44,10 @@ The run setup offers, besides the raw model parameters:
   (secondaries are ejecta fragments; see the main README).
 - A live **estimate** line: expected number of impacts, largest impactor and crater, smallest crater,
   and the basement suggestion, recomputed as you edit (`POST /api/estimate`).
+- A **Tests** tab on the setup page with predefined scenarios (`TESTS` in `server.py`); the first
+  forms a single 1 km crater with its secondaries on a 10 km domain. A test runs like any other run
+  (its card and title say so), and "Edit & run again" keeps the test crater (a notice says so in the
+  setup form; Reset defaults returns to a normal run).
 - **Saved settings**: the bar at the bottom of the setup page stores the parameters, layers and
   presets on the server under a name (`/api/settings`, one JSON file per name in
   `REGOLIT_WEB_SETTINGS`, by default the `settings` directory next to the runs directory). Pick a

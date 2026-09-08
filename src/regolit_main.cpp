@@ -63,6 +63,9 @@ double secondaryVelocityExponent; // Largest fragment shrinks with ejection spee
 double maximumSecondariesPerPrimary; // Budget: only the largest N secondaries of a primary are formed
 bool isEmplaceDistantSecondaries; // Sample primaries outside the domain and form the fragments they send in
 double secondaryMaximumRange; // Distance beyond the domain edge out to which distant primaries are sampled, m
+double testCraterDiameter; // Test mode: form one crater of this final diameter (m) instead of the random population (0 = off)
+double testCraterX; // Test crater center, m from the domain center
+double testCraterY;
 double iceDensity; // The density of ice
 double regolithDensity; // The density of regolith
 double sootDensity; // The density of "soot"
@@ -177,6 +180,9 @@ int main() {
         maximumSecondariesPerPrimary = setVariableOptional(varList, "maximumSecondariesPerPrimary", 20000.0);
         isEmplaceDistantSecondaries = setVariableOptional(varList, "isEmplaceDistantSecondaries", 0.0) != 0;
         secondaryMaximumRange = setVariableOptional(varList, "secondaryMaximumRange", 100000.0);
+        testCraterDiameter = setVariableOptional(varList, "testCraterDiameter", 0.0);
+        testCraterX = setVariableOptional(varList, "testCraterX", 0.0);
+        testCraterY = setVariableOptional(varList, "testCraterY", 0.0);
         iceDensity = setVariable(varList, "iceDensity");
         regolithDensity = setVariable(varList, "regolithDensity");
         sootDensity = setVariable(varList, "sootDensity");
@@ -249,7 +255,8 @@ int main() {
         // Number of impactors larger than minimumImpactorDiameter per Ma: N / (A t) = c D^-b.
         addLogEntry("Calculating number of craters to be created...", true);
         const double impactorsPerMa = fluxConstant_c * pow(minimumImpactorDiameter, -slope_b) * grid.area * earthFluxRatioCoefficient;
-        const long totalNumberOfImpactors = (long) ceil(impactorsPerMa * endTime);
+        // Test mode (testCraterDiameter > 0): a single prescribed crater instead of the random population.
+        const long totalNumberOfImpactors = testCraterDiameter > 0 ? 0 : (long) ceil(impactorsPerMa * endTime);
         const long numberOfCratersInTimestep = std::max(1L, (long) ceil(impactorsPerMa * printTimeStep));
         const long numberOfCratersInSublimationPeriod = sublimationInterval > 0 ? std::max(1L, (long) ceil(impactorsPerMa * sublimationInterval)) : 0;
         const long numberOfCratersInDepositionEvent = iceEmplacementInterval > 0 ? std::max(1L, (long) ceil(impactorsPerMa * iceEmplacementInterval)) : 0;
@@ -271,57 +278,71 @@ int main() {
         Histogram impactorsHistogram(minimumImpactorDiameter, 1e4, 20); // Impactor histogram from minimumImpactorDiameter m to 10 km
         Histogram cratersDepthHistogram(minimumImpactorDiameter, 1e4, 20); // Depth histogram of the visible craters at the end of the run
 
+        // Forms a primary on the grid with its periodic ghosts and its secondaries.
+        auto formPrimary = [&](const Impactor &impactor, Crater &crater) {
+                impactorsHistogram.add(2 * impactor.radius);
+                cratersHistogram.add(2 * crater.finalRadius);
+                if (crater.finalRadius <= 0)
+                        return;
+                grid.formCrater(crater);
+
+                // "Ghost" craters: the domain is periodic. A crater whose footprint (cavity, rim
+                // and ejecta blanket) crosses an edge of the grid is repeated on the opposite side,
+                // and in the opposite corner if it crosses two edges. The ghosts inherit the
+                // composition of the material excavated by the primary.
+                const double footprint = ejectaSpread * crater.finalRadius;
+                const double halfWidth = regionWidth / 2;
+                double xShift = 0, yShift = 0;
+                if (fabs(crater.xLocation) > halfWidth - footprint)
+                        xShift = crater.xLocation > 0 ? -regionWidth : regionWidth;
+                if (fabs(crater.yLocation) > halfWidth - footprint)
+                        yShift = crater.yLocation > 0 ? -regionWidth : regionWidth;
+
+                if (xShift != 0) {
+                        Crater ghost(impactor, crater.xLocation + xShift, crater.yLocation, crater.ejectedMass);
+                        grid.formCrater(ghost);
+                }
+                if (yShift != 0) {
+                        Crater ghost(impactor, crater.xLocation, crater.yLocation + yShift, crater.ejectedMass);
+                        grid.formCrater(ghost);
+                }
+                if (xShift != 0 && yShift != 0) {
+                        Crater ghost(impactor, crater.xLocation + xShift, crater.yLocation + yShift, crater.ejectedMass);
+                        grid.formCrater(ghost);
+                }
+
+                // Secondary craters: fragments of the fast ejecta of this primary that land in the domain
+                // (see include/secondaries.hpp).
+                if (isEmplaceSecondaries) {
+                        secondaries.formSecondaries(crater, grid);
+                }
+        };
+
         //////////////////////
         // Start simulation //
         //////////////////////
         addLogEntry("Running simulation...", true);
 
+        if (testCraterDiameter > 0) {
+                // Test mode: print the initial surface, then form one prescribed crater (impactor from
+                // the inverse scaling) with its ejecta, ghosts and secondaries; the final print follows.
+                grid.printSurface(printIndex, false);
+                grid.printIntegratedSubsurface(depthToIntegrate, printIndex);
+                if (isPrintSubsurface == 1)
+                        grid.printSubsurface(printIndex);
+                printIndex++;
+                Impactor impactor(Crater::impactorRadiusForCraterDiameter(testCraterDiameter, meanImpactVelocity, impactorDensity));
+                Crater crater(impactor, testCraterX, testCraterY);
+                addLogEntry("Test crater: final diameter " + std::to_string(2 * crater.finalRadius) + " m at (" + std::to_string(testCraterX) + ", " +
+                            std::to_string(testCraterY) + ") m from an impactor of radius " + std::to_string(impactor.radius) + " m.", true);
+                formPrimary(impactor, crater);
+        }
+
         for (long i = 0; i < totalNumberOfImpactors; ++i) {
-                // Randomize a new impactor:
+                // Randomize a new impactor and form its crater:
                 Impactor impactor;
-
-                // Add diameter to crater histogram:
-                impactorsHistogram.add(2 * impactor.radius);
-                // Create a crater instance:
                 Crater crater(impactor);
-                // Record diameter in crater histogram:
-                cratersHistogram.add(2 * crater.finalRadius);
-
-                // Form a crater on the grid:
-                if (crater.finalRadius > 0) {
-                        grid.formCrater(crater);
-
-                        // "Ghost" craters: the domain is periodic. A crater whose footprint (cavity, rim
-                        // and ejecta blanket) crosses an edge of the grid is repeated on the opposite side,
-                        // and in the opposite corner if it crosses two edges. The ghosts inherit the
-                        // composition of the material excavated by the primary.
-                        const double footprint = ejectaSpread * crater.finalRadius;
-                        const double halfWidth = regionWidth / 2;
-                        double xShift = 0, yShift = 0;
-                        if (fabs(crater.xLocation) > halfWidth - footprint)
-                                xShift = crater.xLocation > 0 ? -regionWidth : regionWidth;
-                        if (fabs(crater.yLocation) > halfWidth - footprint)
-                                yShift = crater.yLocation > 0 ? -regionWidth : regionWidth;
-
-                        if (xShift != 0) {
-                                Crater ghost(impactor, crater.xLocation + xShift, crater.yLocation, crater.ejectedMass);
-                                grid.formCrater(ghost);
-                        }
-                        if (yShift != 0) {
-                                Crater ghost(impactor, crater.xLocation, crater.yLocation + yShift, crater.ejectedMass);
-                                grid.formCrater(ghost);
-                        }
-                        if (xShift != 0 && yShift != 0) {
-                                Crater ghost(impactor, crater.xLocation + xShift, crater.yLocation + yShift, crater.ejectedMass);
-                                grid.formCrater(ghost);
-                        }
-
-                        // Secondary craters: fragments of the fast ejecta of this primary that land in the domain
-                        // (see include/secondaries.hpp).
-                        if (isEmplaceSecondaries) {
-                                secondaries.formSecondaries(crater, grid);
-                        }
-                }
+                formPrimary(impactor, crater);
 
                 // Secondaries sent into the domain by primaries that formed outside it:
                 if (isEmplaceSecondaries && isEmplaceDistantSecondaries) {

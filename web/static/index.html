@@ -113,6 +113,14 @@
   /* composer */
   .composer h1{margin:0 0 4px;font-size:24px}
   .composer .lead{color:var(--dim);margin:0 0 18px}
+  .ctabs{margin:10px 0 18px}
+  .notice{border:1px solid var(--accent-deep);background:var(--accent-wash);border-radius:9px;padding:9px 12px;margin:0 0 14px;font-size:13px}
+  .tests{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+  .test{border:1px solid var(--edge);background:var(--raise);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+  .test h3{margin:0;font-size:15.5px}
+  .test p{margin:0;color:var(--dim);font-size:13px;line-height:1.45}
+  .test .params{font-family:var(--mono);font-size:11.5px;color:var(--dim);line-height:1.6}
+  .test .btn{align-self:flex-start;margin-top:4px}
   .groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
   .group{background:var(--shell2);border:1px solid var(--edge-soft);border-radius:12px;padding:12px 14px}
   .group .eyebrow{margin-bottom:8px;display:block}
@@ -177,7 +185,17 @@
 
     <section id="composer" class="composer hide">
       <h1>Set up a run</h1>
+      <nav class="tabs ctabs" id="ctabs">
+        <button data-ctab="setup" class="on">Setup</button>
+        <button data-ctab="tests">Tests</button>
+      </nav>
+      <div id="ctab-tests" class="ctab hide">
+        <p class="lead">Predefined scenarios that exercise one part of the model at a time. A test runs like any other run and appears in the list on the left.</p>
+        <div class="tests" id="tests"></div>
+      </div>
+      <div id="ctab-setup" class="ctab">
       <p class="lead">A random impactor population gardens a periodic patch of regolith. Every field has a default from <span class="mono">config/config.cfg</span>; hover a label for its meaning.</p>
+      <div class="notice hide" id="testNotice"></div>
       <div class="groups" id="groups"></div>
       <div class="group" style="margin-top:14px">
         <span class="eyebrow">Initial subsurface layers</span>
@@ -198,6 +216,7 @@
         <input type="text" id="settingsName" placeholder="name" maxlength="80" title="name under which to save the current parameters, layers and presets">
         <button class="btn" id="saveBtn" title="save the current setup on the server under this name">Save</button>
         <button class="btn danger" id="deleteSettingsBtn" title="delete the selected saved settings">Delete</button>
+      </div>
       </div>
     </section>
 
@@ -320,6 +339,7 @@
     clearTimeout(S.listTimer);
     if ((S.runs || []).some(r => r.status === "queued" || r.status === "running")) S.listTimer = setTimeout(refreshRuns, 3000);
   }
+  function testTitle(id) { const t = (S.meta.tests || []).find(t => t.id === id); return t ? "Test: " + t.title : "Test"; }
   function renderList() {
     const q = $("filter").value.trim().toLowerCase();
     const list = $("list");
@@ -332,7 +352,7 @@
       const card = document.createElement("div");
       card.className = "card" + (S.current && S.current.id === r.id ? " on" : "");
       card.title = r.id;
-      card.innerHTML = '<div class="title"><b>' + fmt(p.regionWidth) + ' m &middot; ' + fmt(p.resolution) + ' m/px &middot; ' + fmt(p.endTime) + ' Ma</b>' +
+      card.innerHTML = '<div class="title"><b>' + (r.test ? testTitle(r.test) + " &middot; " : "") + fmt(p.regionWidth) + ' m &middot; ' + fmt(p.resolution) + ' m/px' + (r.test ? "" : ' &middot; ' + fmt(p.endTime) + ' Ma') + '</b>' +
         '<small>' + fmtInt(r.visible_craters) + ' craters &middot; seed ' + fmt(p.randomSeed) + ' &middot; ' + (r.created || r.id).slice(0, 16) + '</small></div>' +
         statusPill(r.status);
       card.onclick = () => loadRun(r.id);
@@ -354,7 +374,9 @@
         Object.entries(S.meta.bodies).map(([k, v]) => [k, v.label])));
       if (group === "Impactors") box.appendChild(presetRow("pf", "Production function", "Crater production function converted to an impactor flux through the crater scaling and fitted by a power law over the run's impactor sizes.",
         Object.entries(S.meta.production_functions).map(([k, v]) => [k, v.label + (v.available ? "" : " (not available)"), !v.available])));
+      if (params.every(p => p.hidden)) continue;
       params.forEach(p => {
+        if (p.hidden) return;
         const row = document.createElement("div");
         row.className = "row" + (group === "Secondary craters" && p.name !== "isEmplaceSecondaries" ? " dep" : "");
         if (p.depends) row.dataset.depends = p.depends;
@@ -434,12 +456,17 @@
     });
   }
   function setParameters(values) {
+    S.hidden = {};
     S.meta.parameters.forEach(p => {
+      if (p.hidden) { if (values[p.name] !== undefined && values[p.name] !== null && Number(values[p.name]) !== Number(S.meta.defaults[p.name])) S.hidden[p.name] = Number(values[p.name]); return; }
       const input = $("p_" + p.name);
       const v = values[p.name] === undefined || values[p.name] === null ? S.meta.defaults[p.name] : values[p.name];
       input.value = (p.kind === "choice" || p.kind === "bool" || p.kind === "int") ? String(Math.round(v)) : fmt(v);
       input.classList.remove("invalid");
     });
+    const notice = $("testNotice");
+    if (S.hidden.testCraterDiameter > 0) { notice.textContent = "Test mode: this setup forms one crater of " + fmt(S.hidden.testCraterDiameter) + " m at (" + fmt(S.hidden.testCraterX || 0) + ", " + fmt(S.hidden.testCraterY || 0) + ") m instead of a random population; duration and flux are ignored. Reset defaults returns to a normal run."; notice.classList.remove("hide"); }
+    else notice.classList.add("hide");
   }
   // ---------- saved settings (kept on the server) ----------
   async function refreshSettingsList(selectId) {
@@ -521,8 +548,9 @@
     return rows;
   }
   function readParameters(strict) {
-    const out = {}; let bad = null;
+    const out = Object.assign({}, S.hidden || {}); let bad = null;
     S.meta.parameters.forEach(p => {
+      if (p.hidden) return;
       const input = $("p_" + p.name); const v = parseFloat(input.value);
       const ok = Number.isFinite(v) && v >= p.min && v <= p.max;
       if (strict !== false) input.classList.toggle("invalid", !ok);
@@ -532,11 +560,41 @@
     if (bad && strict !== false) throw new Error(bad);
     return out;
   }
+  // ---------- tests ----------
+  function renderTests() {
+    const box = $("tests"); box.innerHTML = "";
+    (S.meta.tests || []).forEach(t => {
+      const card = document.createElement("div"); card.className = "test";
+      const shown = ["regionWidth", "resolution", "testCraterDiameter", "endTime"].filter(k => t.parameters[k] !== undefined);
+      const labels = { regionWidth: "domain", resolution: "resolution", testCraterDiameter: "crater", endTime: "duration" };
+      const units = { regionWidth: " m", resolution: " m/px", testCraterDiameter: " m", endTime: " Ma" };
+      card.innerHTML = "<h3>" + t.title + "</h3><p>" + t.summary + "</p><div class='params'>" +
+        shown.map(k => labels[k] + " " + fmt(t.parameters[k]) + units[k]).join(" &middot; ") +
+        (t.parameters.isEmplaceSecondaries ? " &middot; secondaries on" : "") + "</div>";
+      const b = document.createElement("button"); b.className = "btn primary"; b.textContent = "Run test";
+      b.onclick = () => submitTest(t, b);
+      card.appendChild(b); box.appendChild(card);
+    });
+  }
+  async function submitTest(test, button) {
+    button.disabled = true; setMsg("");
+    try {
+      const body = { parameters: test.parameters, layers: test.layers || null, presets: test.presets };
+      const summary = await api("/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      showRun(summary); refreshRuns();
+    } catch (e) { alert("Cannot start the test: " + e.message); }
+    finally { button.disabled = false; }
+  }
+  function selectComposerTab(name) {
+    document.querySelectorAll("#ctabs button").forEach(b => b.classList.toggle("on", b.dataset.ctab === name));
+    document.querySelectorAll(".ctab").forEach(t => t.classList.toggle("hide", t.id !== "ctab-" + name));
+  }
   function openComposer(values, layers, presets) {
     S.presets = Object.assign({}, S.meta.default_presets, presets || {});
     setParameters(values || {}); setLayers(layers || S.meta.layers); setMsg("");
     applyPresets(); if (!values || !Object.keys(values).length) setMultiplierForFunction(); scheduleEstimate();
     $("settingsName").value = ""; refreshSettingsList();
+    selectComposerTab("setup");
     document.querySelectorAll(".card").forEach(c => c.classList.remove("on"));
     stopPolling(); show("composer"); window.scrollTo(0, 0);
   }
@@ -609,7 +667,8 @@
     S.current = summary;
     stopPlaying(); stopPolling();
     const p = summary.parameters;
-    $("runTitle").innerHTML = fmt(p.regionWidth) + " m &times; " + fmt(p.regionWidth) + " m &middot; " + fmt(p.resolution) + " m/px &middot; " + fmt(p.endTime) + " Ma";
+    const test = (summary.presets || {}).test;
+    $("runTitle").innerHTML = (test ? testTitle(test) + " &middot; " : "") + fmt(p.regionWidth) + " m &times; " + fmt(p.regionWidth) + " m &middot; " + fmt(p.resolution) + " m/px" + (test ? "" : " &middot; " + fmt(p.endTime) + " Ma");
     $("runId").textContent = summary.id;
     history.replaceState(null, "", "?run=" + summary.id);
     renderList();
@@ -630,7 +689,7 @@
     const p = s.parameters;
     const dz = s.elevation_max - s.elevation_min;
     const tiles = [
-      [fmtInt(s.total_craters), "", "craters formed", "Impactors larger than " + fmt(p.minimumImpactorDiameter) + " m over " + fmt(p.endTime) + " Ma on " + fmt(Math.round(p.regionWidth * p.regionWidth / 1e6 * 1000) / 1000) + " km²."],
+      [fmtInt(s.total_craters), "", "craters formed", (s.presets && s.presets.test ? "One test crater of " + fmt(p.testCraterDiameter) + " m" : "Impactors larger than " + fmt(p.minimumImpactorDiameter) + " m over " + fmt(p.endTime) + " Ma") + " on " + fmt(Math.round(p.regionWidth * p.regionWidth / 1e6 * 1000) / 1000) + " km²" + (s.secondary_craters ? ", of which " + fmtInt(s.secondary_craters) + " secondaries." : ".")],
       [fmtInt(s.visible_craters), s.total_craters ? '<small>' + Math.round(100 * s.visible_craters / s.total_craters) + '%</small>' : "", "still visible", "Craters whose depth changed by less than half; the rest were buried or overprinted."],
       [fmt(Math.round(dz * 100) / 100), "<small>m</small>", "relief", "Elevation range over all steps: " + fmt(Math.round(s.elevation_min * 100) / 100) + " to " + fmt(Math.round(s.elevation_max * 100) / 100) + " m."],
       [s.grid + "&times;" + s.grid, "", "map grid", "Maps at " + fmt(s.resolution) + " m/px; the model grid is " + s.full_grid + "&times;" + s.full_grid + " at " + fmt(s.full_resolution) + " m/px. " + s.steps.length + " steps, " + s.duration_s + " s of compute."],
@@ -770,7 +829,9 @@
     $("axisSeg").querySelectorAll("button").forEach(b => b.onclick = () => { S.axis = b.dataset.axis; $("axisSeg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); updateSection(); });
     $("secPos").oninput = updateSection;
     $("secDepth").onchange = updateSection;
-    document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => selectTab(b.dataset.tab));
+    document.querySelectorAll(".tabs button[data-tab]").forEach(b => b.onclick = () => selectTab(b.dataset.tab));
+    document.querySelectorAll("#ctabs button").forEach(b => b.onclick = () => selectComposerTab(b.dataset.ctab));
+    renderTests();
     $("editBtn").onclick = () => openComposer(S.current.parameters, S.current.layers, Object.assign({ body: "custom", production_function: "power_law", basement_auto: false }, S.current.presets || {}));
     $("deleteBtn").onclick = deleteCurrent;
     await refreshRuns();
