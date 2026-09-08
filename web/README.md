@@ -42,8 +42,11 @@ The run setup offers, besides the raw model parameters:
   size-distribution slope, depth/diameter) that unfolds when secondaries are switched on.
 - A live **estimate** line: expected number of impacts, largest impactor and crater, smallest crater,
   and the basement suggestion, recomputed as you edit (`POST /api/estimate`).
-- **Save settings / Load settings**: the parameters, layers and presets as a JSON file. A run's
-  Setup tab also records its presets, and "Edit & run again" restores them.
+- **Saved settings**: the bar at the bottom of the setup page stores the parameters, layers and
+  presets on the server under a name (`/api/settings`, one JSON file per name in
+  `REGOLIT_WEB_SETTINGS`, by default the `settings` directory next to the runs directory). Pick a
+  name from the combo to load it; saving under an existing name replaces it. A run's Setup tab also
+  records its presets, and "Edit & run again" restores them.
 
 ## Run locally
 

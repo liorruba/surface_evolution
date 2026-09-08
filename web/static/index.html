@@ -122,6 +122,10 @@
   .estimate b{color:var(--ink);font-family:var(--mono);font-weight:600}
   .row.preset{grid-template-columns:1fr 200px}
   .row.preset select{font-family:var(--sans)}
+  .settings-bar{margin-top:10px;padding-top:12px;border-top:1px solid var(--edge);flex-wrap:wrap}
+  .settings-bar select,.settings-bar input{background:var(--shell);border:1px solid var(--edge);border-radius:7px;padding:7px 9px;font-size:13px}
+  .settings-bar select{min-width:200px}
+  .settings-bar input{width:200px}
   .row .auto{display:inline-flex;gap:5px;align-items:center;font-size:11.5px;color:var(--dim);margin-top:3px}
   .row input:disabled,.row select:disabled{opacity:.55}
   .row.dep.off{display:none}
@@ -175,11 +179,15 @@
       <div class="foot">
         <button class="btn primary" id="runBtn">Run model</button>
         <button class="btn" id="resetBtn">Reset defaults</button>
-        <button class="btn" id="saveBtn" title="download the parameters, layers and presets as a JSON file">Save settings</button>
-        <button class="btn" id="loadBtn" title="load a settings file saved from this page">Load settings</button>
-        <input type="file" id="loadFile" accept="application/json,.json" class="hide">
         <button class="btn" id="cancelBtn">Cancel</button>
         <span class="msg" id="msg"></span>
+      </div>
+      <div class="foot settings-bar">
+        <span class="eyebrow">Saved settings</span>
+        <select id="settingsSel" title="load settings saved on the server"><option value="">Load…</option></select>
+        <input type="text" id="settingsName" placeholder="name" maxlength="80" title="name under which to save the current parameters, layers and presets">
+        <button class="btn" id="saveBtn" title="save the current setup on the server under this name">Save</button>
+        <button class="btn danger" id="deleteSettingsBtn" title="delete the selected saved settings">Delete</button>
       </div>
     </section>
 
@@ -310,7 +318,7 @@
       const box = document.createElement("div");
       box.className = "group";
       box.innerHTML = '<span class="eyebrow">' + group + "</span>";
-      if (group === "Target") box.appendChild(presetRow("body", "Target body", "Sets gravity, impact velocity and target density; editing one of them switches to Custom.",
+      if (group === "Target") box.appendChild(presetRow("body", "Target body", "",
         Object.entries(S.meta.bodies).map(([k, v]) => [k, v.label])));
       if (group === "Impactors") box.appendChild(presetRow("pf", "Production function", "Crater production function converted to an impactor flux through the crater scaling and fitted by a power law over the run's impactor sizes.",
         Object.entries(S.meta.production_functions).map(([k, v]) => [k, v.label + (v.available ? "" : " (not available)"), !v.available])));
@@ -349,7 +357,7 @@
   function presetRow(id, label, help, options) {
     const row = document.createElement("div");
     row.className = "row preset";
-    row.innerHTML = "<label for='" + id + "'>" + label + "<span class='help'>" + help + "</span></label>";
+    row.innerHTML = "<label for='" + id + "'>" + label + (help ? "<span class='help'>" + help + "</span>" : "") + "</label>";
     const select = document.createElement("select"); select.id = id;
     options.forEach(([value, text, disabled]) => { const o = document.createElement("option"); o.value = value; o.textContent = text; if (disabled) o.disabled = true; select.appendChild(o); });
     row.appendChild(select);
@@ -397,28 +405,48 @@
       input.classList.remove("invalid");
     });
   }
-  function currentSettings() {
-    return { version: 1, saved: new Date().toISOString(), parameters: readParameters(false), layers: readLayers(), presets: Object.assign({}, S.presets) };
+  // ---------- saved settings (kept on the server) ----------
+  async function refreshSettingsList(selectId) {
+    try { S.savedSettings = await api("/api/settings"); } catch (e) { S.savedSettings = []; }
+    const sel = $("settingsSel");
+    sel.innerHTML = '<option value="">' + (S.savedSettings.length ? "Load…" : "No saved settings") + "</option>";
+    S.savedSettings.forEach(d => { const o = document.createElement("option"); o.value = d.id; o.textContent = d.name; sel.appendChild(o); });
+    sel.value = selectId && S.savedSettings.some(d => d.id === selectId) ? selectId : "";
   }
   function applySettings(settings) {
-    if (!settings || typeof settings !== "object" || !settings.parameters) throw new Error("not a REGOLIT settings file");
+    if (!settings || typeof settings !== "object" || !settings.parameters) throw new Error("not a REGOLIT settings record");
     S.presets = Object.assign({ body: "custom", production_function: "power_law", basement_auto: true }, settings.presets || {});
     setParameters(settings.parameters); setLayers(settings.layers && settings.layers.length ? settings.layers : S.meta.layers);
     applyPresets(); scheduleEstimate();
   }
-  function saveSettings() {
-    let settings;
-    try { settings = currentSettings(); } catch (e) { setMsg(e.message, true); return; }
-    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = "regolit-settings-" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".json";
-    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    setMsg("Settings saved as " + a.download + ".");
+  async function saveSettings() {
+    const name = $("settingsName").value.trim();
+    if (!name) { setMsg("Give the settings a name first.", true); $("settingsName").focus(); return; }
+    let body;
+    try { body = { name, parameters: readParameters(false), layers: readLayers(), presets: Object.assign({}, S.presets) }; } catch (e) { setMsg(e.message, true); return; }
+    const existing = (S.savedSettings || []).find(d => d.name.toLowerCase() === name.toLowerCase());
+    if (existing && !confirm('Replace the saved settings "' + existing.name + '"?')) return;
+    try {
+      const doc = await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      await refreshSettingsList(doc.id);
+      setMsg('Settings saved as "' + doc.name + '".');
+    } catch (e) { setMsg("Cannot save settings: " + e.message, true); }
   }
-  function loadSettingsFile(file) {
-    const reader = new FileReader();
-    reader.onload = () => { try { applySettings(JSON.parse(reader.result)); setMsg("Loaded " + file.name + "."); } catch (e) { setMsg("Cannot load settings: " + e.message, true); } };
-    reader.readAsText(file);
+  async function loadSettings(id) {
+    if (!id) return;
+    try {
+      const doc = await api("/api/settings/" + encodeURIComponent(id));
+      applySettings(doc); $("settingsName").value = doc.name;
+      setMsg('Loaded "' + doc.name + '" (saved ' + doc.saved.replace("T", " ") + ").");
+    } catch (e) { setMsg("Cannot load settings: " + e.message, true); }
+  }
+  async function deleteSettings() {
+    const id = $("settingsSel").value;
+    const entry = (S.savedSettings || []).find(d => d.id === id);
+    if (!entry) { setMsg("Select saved settings to delete.", true); return; }
+    if (!confirm('Delete the saved settings "' + entry.name + '"?')) return;
+    try { await api("/api/settings/" + encodeURIComponent(id) + "/delete", { method: "POST" }); await refreshSettingsList(); setMsg('Deleted "' + entry.name + '".'); }
+    catch (e) { setMsg("Cannot delete settings: " + e.message, true); }
   }
   function scheduleEstimate() {
     clearTimeout(S.estimateTimer);
@@ -472,6 +500,7 @@
     S.presets = Object.assign({}, S.meta.default_presets, presets || {});
     setParameters(values || {}); setLayers(layers || S.meta.layers); setMsg("");
     applyPresets(); if (!values || !Object.keys(values).length) setMultiplierForFunction(); scheduleEstimate();
+    $("settingsName").value = ""; refreshSettingsList();
     document.querySelectorAll(".card").forEach(c => c.classList.remove("on"));
     show("composer"); window.scrollTo(0, 0);
   }
@@ -642,8 +671,9 @@
     $("runBtn").onclick = submitRun;
     $("resetBtn").onclick = () => { S.presets = Object.assign({}, S.meta.default_presets); setParameters({}); setLayers(S.meta.layers); applyPresets(); setMultiplierForFunction(); scheduleEstimate(); setMsg(""); };
     $("saveBtn").onclick = saveSettings;
-    $("loadBtn").onclick = () => $("loadFile").click();
-    $("loadFile").onchange = () => { if ($("loadFile").files[0]) loadSettingsFile($("loadFile").files[0]); $("loadFile").value = ""; };
+    $("settingsSel").onchange = () => loadSettings($("settingsSel").value);
+    $("deleteSettingsBtn").onclick = deleteSettings;
+    $("settingsName").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); saveSettings(); } };
     $("addLayer").addEventListener("click", scheduleEstimate);
     $("cancelBtn").onclick = () => show(S.current ? "runView" : "empty");
     $("addLayer").onclick = () => $("layers").appendChild(layerRow([0, 1, 1, 0, 0]));

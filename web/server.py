@@ -61,6 +61,8 @@ from regolit.io import RegolitOutput, Subsurface, read_config, read_layers  # no
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 BINARY = Path(os.environ.get("REGOLIT_BINARY", REPO_ROOT / "build" / "apps" / "regolit_main.run"))
 RUNS_DIR = Path(os.environ.get("REGOLIT_WEB_RUNS", REPO_ROOT / "runs" / "web"))
+SETTINGS_DIR = Path(os.environ.get("REGOLIT_WEB_SETTINGS", RUNS_DIR.parent / "settings"))  # saved run setups
+MAX_SAVED_SETTINGS = int(os.environ.get("REGOLIT_WEB_MAX_SETTINGS", "200"))
 CONFIG_TEMPLATE = REPO_ROOT / "config" / "config.cfg"
 LAYERS_TEMPLATE = REPO_ROOT / "config" / "layers.cfg"
 MAX_CONCURRENT = int(os.environ.get("REGOLIT_WEB_CONCURRENCY", "4"))
@@ -156,7 +158,7 @@ PARAMETERS: List[Dict] = [
     dict(group="Secondary craters", name="slope_secondaries", label="Size-distribution slope", unit="", min=1.5, max=8, kind="number",
          description="N(>r) = (r_max / r)^slope between one pixel and the largest secondary."),
     dict(group="Secondary craters", name="secondaryDepthToDiameter", label="Depth / diameter", unit="", min=0.02, max=0.5, kind="number",
-         description="Secondaries are shallower than primaries."),
+         description=""),
     dict(group="Subsurface", name="initialThickness", label="Basement thickness", unit="m", min=1, max=10000, kind="number", auto="basement",
          description="Automatic: the initial layers plus three times the depth of the largest expected crater. Untick to override."),
     dict(group="Subsurface", name="depthToIntegrate", label="Integration depth", unit="m", min=0.005, max=100, kind="number",
@@ -215,6 +217,10 @@ class RunRequest(BaseModel):
     parameters: Dict[str, object] = Field(default_factory=dict)   # coerced and range-checked in validate() / estimate_for()
     layers: Optional[List[List[float]]] = None   # rows of (class, thickness, regolith, ice, soot), bottom-up
     presets: Optional[Dict[str, object]] = None  # UI choices kept with the run: body, production_function, basement_auto
+
+
+class SettingsRequest(RunRequest):
+    name: str = Field(min_length=1, max_length=80)
 
 
 PRESET_KEYS = {"body": str, "production_function": str, "basement_auto": bool}
@@ -720,6 +726,72 @@ def make_zip(run_id: str) -> Path:
 # ----------------------------------------------------------------------------------------------
 # Routes
 # ----------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------
+# Saved settings (stored on the server, one JSON file per name)
+# ----------------------------------------------------------------------------------------------
+SETTINGS_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
+
+
+def settings_id(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-")[:80]
+    if not slug:
+        raise HTTPException(422, "the settings name needs at least one letter or digit")
+    return slug
+
+
+def settings_path(settings_id_: str) -> Path:
+    if not SETTINGS_ID_PATTERN.match(settings_id_):
+        raise HTTPException(404, "unknown settings")
+    return SETTINGS_DIR / (settings_id_ + ".json")
+
+
+def settings_entry(doc: Dict) -> Dict:
+    presets = doc.get("presets") or {}
+    return dict(id=doc["id"], name=doc["name"], saved=doc["saved"], body=presets.get("body"),
+                production_function=presets.get("production_function"))
+
+
+def list_settings() -> List[Dict]:
+    SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+    out = []
+    for path in SETTINGS_DIR.glob("*.json"):
+        try:
+            out.append(settings_entry(json.loads(path.read_text())))
+        except (OSError, ValueError, KeyError):
+            continue
+    return sorted(out, key=lambda d: d["name"].lower())
+
+
+def clean_settings(request: SettingsRequest) -> Dict:
+    """Store the numeric parameters, layers and presets; nothing else from the client."""
+    parameters: Dict[str, float] = {}
+    for p in PARAMETERS:
+        if p["name"] in request.parameters:
+            try:
+                parameters[p["name"]] = float(request.parameters[p["name"]])
+            except (TypeError, ValueError):
+                raise HTTPException(422, "{} is not a number".format(p["label"]))
+    layers = None
+    if request.layers:
+        if len(request.layers) > MAX_LAYER_ROWS:
+            raise HTTPException(422, "at most {} layer rows".format(MAX_LAYER_ROWS))
+        layers = [[float(v) for v in row[:5]] for row in request.layers if len(row) == 5]
+    return dict(id=settings_id(request.name), name=request.name.strip(), saved=time.strftime("%Y-%m-%dT%H:%M:%S"),
+                parameters=parameters, layers=layers, presets=clean_presets(request.presets))
+
+
+def save_settings(request: SettingsRequest) -> Dict:
+    doc = clean_settings(request)
+    path = settings_path(doc["id"])
+    SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+    if not path.exists() and len(list(SETTINGS_DIR.glob("*.json"))) >= MAX_SAVED_SETTINGS:
+        raise HTTPException(429, "too many saved settings ({}); delete some first".format(MAX_SAVED_SETTINGS))
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(doc, indent=1))
+    os.replace(tmp, path)
+    return doc
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index() -> HTMLResponse:
     return HTMLResponse((STATIC_DIR / "index.html").read_text())
@@ -751,6 +823,33 @@ async def meta() -> Dict:
 async def post_estimate(request: RunRequest) -> Dict:
     """Fitted flux law, expected impacts, largest crater and suggested basement for a parameter set (no run)."""
     return estimate_for(request)
+
+
+@app.get("/api/settings")
+async def get_settings_list() -> List[Dict]:
+    return list_settings()
+
+
+@app.post("/api/settings")
+async def create_settings(request: SettingsRequest) -> Dict:
+    return save_settings(request)
+
+
+@app.get("/api/settings/{settings_id_}")
+async def get_settings(settings_id_: str) -> Dict:
+    path = settings_path(settings_id_)
+    if not path.exists():
+        raise HTTPException(404, "unknown settings")
+    return json.loads(path.read_text())
+
+
+@app.post("/api/settings/{settings_id_}/delete")
+async def delete_settings(settings_id_: str) -> Dict:
+    path = settings_path(settings_id_)
+    if not path.exists():
+        raise HTTPException(404, "unknown settings")
+    path.unlink()
+    return {"deleted": settings_id_}
 
 
 @app.get("/api/runs")
