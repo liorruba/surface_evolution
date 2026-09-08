@@ -124,6 +124,7 @@
   .row .help{display:block;color:var(--faint);font-size:11.5px;margin-top:1px}
   .row input,.row select{width:100%;background:var(--shell);border:1px solid var(--edge);border-radius:7px;padding:5px 7px;font-family:var(--mono);font-size:12.5px}
   .row input.invalid{border-color:var(--alert)}
+  .row input[type=checkbox]{width:18px;height:18px;padding:0;margin:0;justify-self:end;accent-color:var(--accent);cursor:pointer}
   .row .unit{color:var(--faint);font-size:11.5px;margin-left:4px}
   table.layers{width:100%;border-collapse:collapse;font-size:12.5px}
   table.layers th{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-align:left;padding:4px 6px;font-weight:500}
@@ -388,10 +389,11 @@
         label.innerHTML = p.label + (p.unit ? '<span class="unit">' + p.unit + "</span>" : "") + (p.description ? '<span class="help">' + p.description + "</span>" : "");
         if (p.auto === "basement") label.innerHTML += '<span class="auto"><input type="checkbox" id="basementAuto" checked> automatic</span>';
         let input;
-        if (p.kind === "choice" || p.kind === "bool") {
+        if (p.kind === "bool") {
+          input = document.createElement("input"); input.type = "checkbox";
+        } else if (p.kind === "choice") {
           input = document.createElement("select");
-          const options = p.kind === "bool" ? [["0", "off"], ["1", "on"]] : Object.entries(p.choices);
-          options.forEach(([v, t]) => { const o = document.createElement("option"); o.value = v; o.textContent = t; input.appendChild(o); });
+          Object.entries(p.choices).forEach(([v, t]) => { const o = document.createElement("option"); o.value = v; o.textContent = t; input.appendChild(o); });
         } else {
           input = document.createElement("input");
           input.type = "number"; input.step = p.kind === "int" ? "1" : "any"; input.min = p.min; input.max = p.max;
@@ -450,11 +452,14 @@
     $("p_earthFluxRatioCoefficient").value = S.presets.production_function === "power_law" ? fmt(S.meta.defaults.earthFluxRatioCoefficient) : "1";
   }
   function applyBasementMode() { $("p_initialThickness").disabled = !!S.presets.basement_auto; }
+  // Every parameter input answers to these two: on/off parameters are checkboxes, the rest hold a number as text.
+  function inputValue(input) { return input.type === "checkbox" ? (input.checked ? "1" : "0") : input.value; }
+  function setInputValue(input, v) { if (input.type === "checkbox") input.checked = Number(v) >= 0.5; else input.value = v; }
   function applySecondaries() {   // folds the rows of every group whose switch is off (and nested switches)
     document.querySelectorAll(".row.dep").forEach(r => {
       const master = r.dataset.master ? $("p_" + r.dataset.master) : null;
       const parent = r.dataset.depends ? $("p_" + r.dataset.depends) : null;
-      r.classList.toggle("off", (master && master.value !== "1") || (parent && parent.value !== "1"));
+      r.classList.toggle("off", (master && inputValue(master) !== "1") || (parent && inputValue(parent) !== "1"));
     });
   }
   function setParameters(values) {
@@ -463,7 +468,7 @@
       if (p.hidden) { if (values[p.name] !== undefined && values[p.name] !== null && Number(values[p.name]) !== Number(S.meta.defaults[p.name])) S.hidden[p.name] = Number(values[p.name]); return; }
       const input = $("p_" + p.name);
       const v = values[p.name] === undefined || values[p.name] === null ? S.meta.defaults[p.name] : values[p.name];
-      input.value = (p.kind === "choice" || p.kind === "bool" || p.kind === "int") ? String(Math.round(v)) : fmt(v);
+      setInputValue(input, (p.kind === "choice" || p.kind === "bool" || p.kind === "int") ? String(Math.round(v)) : fmt(v));
       input.classList.remove("invalid");
     });
     const notice = $("testNotice");
@@ -553,7 +558,7 @@
     const out = Object.assign({}, S.hidden || {}); let bad = null;
     S.meta.parameters.forEach(p => {
       if (p.hidden) return;
-      const input = $("p_" + p.name); const v = parseFloat(input.value);
+      const input = $("p_" + p.name); const v = parseFloat(inputValue(input));
       const ok = Number.isFinite(v) && v >= p.min && v <= p.max;
       if (strict !== false) input.classList.toggle("invalid", !ok);
       if (!ok && !bad) bad = p.label + " must be between " + p.min + " and " + p.max;
