@@ -129,6 +129,12 @@ runs that were still `queued`, leaves `running` workers alone, and marks runs wh
 as `failed`. Maps and downloads answer 409 until the run is `done`; a running run cannot be
 deleted.
 
+The worker is started with the standard library's `subprocess` rather than the event loop's
+subprocess support: under uvloop a child inherits every inheritable descriptor, including uvicorn's
+listening socket, and a long-running worker would then keep the port busy across server restarts.
+Should that ever happen with an old worker, `LOCAL_PORT=8031 bash deploy/mediator/setup_mediator.sh`
+moves uvicorn to another local port while the tunnel keeps publishing the same droplet port.
+
 ## Limits
 
 Requests are validated against the ranges in `PARAMETERS` in `server.py`. A run is refused if it

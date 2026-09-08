@@ -6,7 +6,7 @@ After=network-online.target regolit-web.service
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/bin/ssh -NT -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new -R 127.0.0.1:__PORT__:127.0.0.1:__PORT__ __DROPLET__
+ExecStart=/usr/bin/ssh -NT -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new -R 127.0.0.1:__PORT__:127.0.0.1:__LOCAL_PORT__ __DROPLET__
 Restart=always
 RestartSec=10
 

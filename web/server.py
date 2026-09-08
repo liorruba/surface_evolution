@@ -1025,18 +1025,28 @@ async def run_in_background(run_id: str, overrides: Dict[str, float], layers: Op
             if not (RUNS_DIR / run_id / "summary.json").exists():   # deleted while queued
                 return
             try:
-                process = await asyncio.create_subprocess_exec(
-                    sys.executable, "-m", "web.worker", run_id, cwd=str(REPO_ROOT), start_new_session=True,
-                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
-                _, stderr = await process.communicate()
-                if process.returncode != 0 and read_status(RUNS_DIR / run_id) in ("queued", "running"):
-                    fail_run(run_id, "the worker exited with status {}: {}".format(process.returncode, stderr.decode(errors="replace")[-1500:]))
+                returncode, stderr = await asyncio.to_thread(spawn_worker, run_id)
+                if returncode != 0 and read_status(RUNS_DIR / run_id) in ("queued", "running"):
+                    fail_run(run_id, "the worker exited with status {}: {}".format(returncode, stderr[-1500:]))
             except Exception as error:
                 fail_run(run_id, "could not start the worker: {}".format(error))
     finally:
         if not acquired:
             WAITING["count"] -= 1
         await asyncio.to_thread(prune_runs)
+
+
+def spawn_worker(run_id: str) -> Tuple[int, str]:
+    """Run the detached worker to completion (blocking; called in a thread).
+
+    Uses the standard library rather than the event loop's subprocess support on purpose: under
+    uvloop the children inherit every inheritable descriptor, including uvicorn's listening socket,
+    and a worker holding the socket keeps the port busy long after the server restarts."""
+    import subprocess
+    process = subprocess.Popen([sys.executable, "-m", "web.worker", run_id], cwd=str(REPO_ROOT), start_new_session=True,
+                               close_fds=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    _, stderr = process.communicate()
+    return process.returncode, stderr or ""
 
 
 def start_background(run_id: str, overrides: Dict[str, float], layers: Optional[List[List[float]]], presets: Optional[Dict[str, object]]) -> None:
