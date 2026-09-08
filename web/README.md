@@ -19,14 +19,23 @@ Results can be shared with the page link (`?run=<id>`).
 The run setup offers, besides the raw model parameters:
 
 - **Target body** presets (Moon, Mercury, Mars, Ceres, Vesta, custom) that set gravity, impact
-  velocity and target density; editing one of those switches the preset to custom. The angle of
+  velocity and the target properties (density, effective strength `Ybar`, strength constant `K2`)
+  after Holsapple (1993) as tabulated by Williams et al. (2014): lunar regolith for the airless
+  bodies, dry soil for Mars. Editing one of those fields switches the preset to custom. The angle of
   repose is never changed by a preset (default 35 deg).
 - **Production functions** for the impactor flux. The model samples a single power law
-  `N(>d) = c d^-b`; a production function (crater counts) is converted to impactor sizes through the
-  model's own crater scaling and fitted by that power law over the run's impactor size range, and
-  the fitted `c`, `b` are shown. Neukum et al. (2001, lunar) and Daubar et al. (2013, current Mars)
-  are included; Marchi et al. (2009) is listed but disabled until its coefficients are entered in
-  `python/regolit/scaling.py`; "Power law (manual)" lets you type `c` and `b` yourself.
+  `N(>d) = c d^-b` of impactor diameters:
+  - *Williams et al. (2014)* (default): the annual flux of terrestrial fireballs (Brown et al. 2002,
+    `log10 N(>E) = 0.5677 - 0.90 log10 E`) converted to impactor diameters with the impactor density
+    and the body's mean impact velocity and scaled by the body/Earth flux ratio (Moon 0.725,
+    Mars 1.885). It is an impactor distribution already, with cumulative slope 2.7.
+  - *Neukum et al. (2001)*, lunar crater production function, and *Daubar et al. (2013)*, the
+    present-day martian rate (1.65e-6 craters km^-2 yr^-1 with D >= 3.9 m, differential slope
+    -2.45, i.e. cumulative slope 1.45). Crater functions are converted to impactor sizes through the
+    model's own crater scaling and fitted by the power law over the run's impactor size range; the
+    fitted `c`, `b` are shown.
+  - *Power law (manual)*: type `c` and `b` yourself.
+  All constants live in `python/regolit/scaling.py`.
 - An **automatic basement thickness**: the initial layers plus three times the depth of the
   largest crater expected in the run, with a checkbox to override it.
 - A **secondary craters** panel (largest secondary as a fraction of the primary radius,

@@ -128,10 +128,13 @@ PARAMETERS: List[Dict] = [
     dict(group="Target", name="g", label="Gravity", unit="m/s^2", min=0.01, max=30, kind="number", body=True),
     dict(group="Target", name="meanImpactVelocity", label="Impact velocity", unit="m/s", min=500, max=80000, kind="number", body=True),
     dict(group="Target", name="targetDensity", label="Target density", unit="kg/m^3", min=300, max=6000, kind="number", body=True),
-    dict(group="Target", name="k1", label="Scaling constant k1", unit="", min=0.01, max=2, kind="number",
-         description="Holsapple (1993) crater-volume scaling constant."),
+    dict(group="Target", name="k1", label="Scaling constant K1", unit="", min=0.01, max=2, kind="number",
+         description="Holsapple (1993) crater-volume scaling constant (0.132 for soils and regolith)."),
+    dict(group="Target", name="k2", label="Strength constant K2", unit="", min=0, max=2, kind="number", body=True,
+         description="Holsapple (1993) strength-regime constant (0.26 for dry soil and lunar regolith; 1 in the original model)."),
     dict(group="Target", name="mu", label="Scaling exponent mu", unit="", min=0.3, max=0.7, kind="number"),
-    dict(group="Target", name="Ybar", label="Effective strength", unit="Pa", min=0, max=1e9, kind="number"),
+    dict(group="Target", name="Ybar", label="Effective strength", unit="Pa", min=0, max=1e9, kind="number", body=True,
+         description="Target strength; matters for the smallest craters. Set by the body preset from Williams et al. (2014)."),
     dict(group="Target", name="angleOfRepose", label="Angle of repose", unit="deg", min=5, max=80, kind="number",
          description="Slopes steeper than this fail at every output step. Not changed by the body preset."),
     dict(group="Craters", name="craterProfileType", label="Cavity shape", unit="", min=1, max=2, kind="choice",
@@ -264,7 +267,7 @@ def estimate_for(request: RunRequest) -> Dict:
     if key not in scaling.PRODUCTION_FUNCTIONS or not scaling.PRODUCTION_FUNCTIONS[key].get("available"):
         key = "power_law"
     try:
-        return scaling.estimate(effective, total, key)
+        return scaling.estimate(effective, total, key, presets.get("body"))
     except (ValueError, ZeroDivisionError, OverflowError) as error:
         raise HTTPException(400, "cannot estimate: {}".format(error))
 
@@ -736,7 +739,7 @@ async def meta() -> Dict:
         "bodies": scaling.BODIES,
         "body_fields": list(scaling.BODY_FIELDS),
         "production_functions": {k: {"label": v["label"], "available": v["available"], "reference": v["reference"]} for k, v in scaling.PRODUCTION_FUNCTIONS.items()},
-        "default_presets": {"body": "moon", "production_function": "neukum", "basement_auto": True},
+        "default_presets": {"body": "moon", "production_function": "williams", "basement_auto": True},
         "map_kinds": {k: v[0] for k, v in MAP_KINDS.items()},
         "default_kind": "shaded_relief",
         "map_geometry": map_geometry(),

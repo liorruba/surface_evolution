@@ -69,7 +69,7 @@ double Crater::calcTransientVolume(const Impactor &impactor) const {
         double buff1 = (g * impactor.radius / pow(impactor.velocity,2.0)) * pow(targetDensity/impactorDensity, -1.0/3.0);
         double buff2 = pow(Ybar/targetDensity/pow(impactor.velocity, 2.0), (2.0 + mu)/2.0);
 
-        return k1 * (impactor.mass/targetDensity) * pow(buff1 + buff2, -3 * mu / (2 + mu));
+        return k1 * (impactor.mass/targetDensity) * pow(buff1 + k2 * buff2, -3 * mu / (2 + mu));
 }
 
 // Transient crater volume (gravity regime):

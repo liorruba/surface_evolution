@@ -435,7 +435,8 @@
       if (S.presets.basement_auto) $("p_initialThickness").value = fmt(e.suggested_basement_m);
       const r1 = (v, d) => fmt(Math.round(v * Math.pow(10, d)) / Math.pow(10, d));
       $("estimate").innerHTML = "Expected <b>" + Math.round(e.expected_impacts).toLocaleString() + "</b> impacts &middot; largest impactor <b>" + r1(e.largest_impactor_m, 2) + " m</b> &rarr; crater <b>" + r1(e.largest_crater_diameter_m, 1) + " m</b> across, <b>" + r1(e.largest_crater_depth_m, 2) + " m</b> deep &middot; smallest crater <b>" + r1(e.smallest_crater_diameter_m, 2) + " m</b> &middot; initial layers <b>" + r1(e.layers_total_m, 2) + " m</b>, basement <b>" + r1(e.suggested_basement_m, 1) + " m</b>" +
-        (e.fit_range_m ? " &middot; power-law fit of the production function over impactors " + r1(e.fit_range_m[0], 2) + "&ndash;" + r1(e.fit_range_m[1], 2) + " m: c = <b>" + fmt(e.fluxConstant_c, 3) + "</b>, b = <b>" + r1(e.slope_b, 3) + "</b>" : "");
+        (e.fit_range_m ? " &middot; power-law fit of the production function over impactors " + r1(e.fit_range_m[0], 2) + "&ndash;" + r1(e.fit_range_m[1], 2) + " m: c = <b>" + fmt(e.fluxConstant_c, 3) + "</b>, b = <b>" + r1(e.slope_b, 3) + "</b>" : "") +
+        (e.body_flux_ratio ? " &middot; body/Earth flux ratio <b>" + e.body_flux_ratio + "</b>" : "");
     } catch (e) { if (seq === S.estimateSeq) $("estimate").textContent = "Estimate unavailable: " + e.message; }
   }
   function layerRow(values) {

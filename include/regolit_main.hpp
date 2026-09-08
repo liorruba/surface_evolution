@@ -56,6 +56,7 @@ extern double angleOfRepose; // The regolith angle of repose, degrees
 // Surface physical properties:
 extern double g;
 extern double k1;
+extern double k2; // Strength-regime scaling constant (Holsapple 1993 K2; 1 reproduces the original model)
 extern double Ybar;
 extern double mu;
 extern double targetDensity;

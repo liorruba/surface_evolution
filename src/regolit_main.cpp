@@ -84,6 +84,7 @@ double angleOfRepose; // The regolith angle of repose (deg)
 // Surface physical properties:
 double g;
 double k1;
+double k2; // Strength-regime scaling constant (Holsapple 1993 K2)
 double Ybar;
 double mu;
 double targetDensity;
@@ -191,6 +192,7 @@ int main() {
         // Surface physical properties:
         g = setVariable(varList, "g");
         k1 = setVariable(varList, "k1");
+        k2 = setVariableOptional(varList, "k2", 1.0);
         Ybar = setVariable(varList, "Ybar");
         mu = setVariable(varList, "mu");
         targetDensity = setVariable(varList, "targetDensity");
