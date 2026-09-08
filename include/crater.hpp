@@ -6,6 +6,9 @@
 // Class for crater object
 class Crater {
 public:
+        static long zModelWarnings;   // craters whose Z-model table had skipped annuli (logged for the first few only)
+private:
+public:
 double xLocation;
 double yLocation;
 double transientRadius;

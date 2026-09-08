@@ -10,6 +10,8 @@
 #include "../include/log.hpp"
 #include "../include/crater.hpp"
 
+long Crater::zModelWarnings = 0;
+
 // First constructor: randomize impact location
 Crater::Crater(Impactor impactor) : ejectedMass(Layer(0,0,0,0)), ejectaDistance(), ejectaThickness() {
         xLocation = randU(-regionWidth/2, regionWidth/2);
@@ -149,7 +151,13 @@ void Crater::calcEjectaThickness(const Impactor &impactor){
                 table.emplace_back(0.5 * (inner + outer), ejectaVolume / ejectaArea);
         }
         if (skipped > 0) {
-                addLogEntry("WARNING: " + std::to_string(skipped) + " Z-model annuli had a non-increasing landing distance and were skipped.", false);
+                // Logged for the first few craters only: with millions of craters this line would dominate the log.
+                if (++zModelWarnings <= 10) {
+                        addLogEntry("WARNING: " + std::to_string(skipped) + " Z-model annuli had a non-increasing landing distance and were skipped.", false);
+                }
+                if (zModelWarnings == 10) {
+                        addLogEntry("WARNING: further Z-model annuli warnings are not logged; the total is reported at the end of the run.", false);
+                }
         }
         std::sort(table.begin(), table.end());
 

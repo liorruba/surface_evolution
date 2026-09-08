@@ -575,7 +575,11 @@
     $("progressPhase").textContent = status === "failed" ? "" : (summary.phase || "");
     $("progressError").classList.toggle("hide", status !== "failed"); $("progressError").textContent = summary.error || "";
     $("deleteBtn").disabled = status === "running";
-    try { const log = await api_text("/api/runs/" + summary.id + "/log"); const lines = log.trim().split("\n").filter(l => !l.includes("Getting variable")); $("progressLog").textContent = lines.slice(-25).join("\n"); $("progressLog").classList.toggle("hide", !lines.length); } catch (e) { $("progressLog").classList.add("hide"); }
+    try {
+      const log = await api_text("/api/runs/" + summary.id + "/log?tail=65536");
+      const lines = collapseRepeats(log.trim().split("\n").filter(l => !l.includes("Getting variable")));
+      $("progressLog").textContent = lines.slice(-25).join("\n"); $("progressLog").classList.toggle("hide", !lines.length);
+    } catch (e) { $("progressLog").classList.add("hide"); }
     if (status === "queued" || status === "running") {
       S.pollTimer = setTimeout(async () => {
         if (!S.current || S.current.id !== summary.id) return;
@@ -583,6 +587,19 @@
         catch (e) { $("runMeta").textContent = "run " + summary.id + " is no longer available"; }
       }, 2000);
     }
+  }
+  function collapseRepeats(lines) {
+    // consecutive lines with the same message (ignoring the timestamp) become one line with a count
+    const out = [];
+    let last = null, count = 0;
+    const msg = l => l.replace(/^\S+\s+/, "");
+    for (const l of lines) {
+      if (last !== null && msg(l) === msg(last)) { count++; continue; }
+      if (last !== null) out.push(count > 1 ? last + "  (×" + count + ")" : last);
+      last = l; count = 1;
+    }
+    if (last !== null) out.push(count > 1 ? last + "  (×" + count + ")" : last);
+    return out;
   }
   function showRun(summary) {
     S.current = summary;

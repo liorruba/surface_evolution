@@ -35,7 +35,7 @@ if [[ -n "$WEB_USER" || ! -f "$ENV_FILE" ]]; then
     echo "REGOLIT_BINARY=$APP_DIR/build/apps/regolit_main.run"
     echo "REGOLIT_WEB_RUNS=$RUNS_DIR"
     echo "REGOLIT_WEB_CONCURRENCY=4"
-    echo "REGOLIT_WEB_TIMEOUT=7200"
+    echo "REGOLIT_WEB_TIMEOUT=43200"
     echo "REGOLIT_WEB_MAX_RUNS=500"
     echo "REGOLIT_WEB_MAX_DISK_GB=$MAX_DISK_GB"
     if [[ -n "$WEB_USER" ]]; then

@@ -135,7 +135,7 @@ impacts. The region width itself is bounded only through the cell count (up to 1
 1000 m/pixel). These are sized for the compute machine (16 cores, 125 GB): measured with 8 threads
 over 100 Ma, 2000 x 2000 cells run in 18 s and need 0.8 GB, 4000 x 4000 cells run in 3 min and
 need 3.3 GB, so 8000 x 8000 cells need about 15 GB and four of them fit at a time. Four runs execute
-at a time (others wait, up to twelve), each with a 2 h timeout, and the slope relaxation of each run uses
+at a time (others wait, up to twelve), each with a 12 h timeout, and the slope relaxation of each run uses
 `OMP_NUM_THREADS` threads (default: physical cores divided by the concurrency). The full layer
 stacks are stored compactly for the cross-sections. Old runs are deleted once more than 500 are
 stored or the runs directory exceeds 200 GB. All of these are environment variables

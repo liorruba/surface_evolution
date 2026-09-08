@@ -67,7 +67,7 @@ CONFIG_TEMPLATE = REPO_ROOT / "config" / "config.cfg"
 LAYERS_TEMPLATE = REPO_ROOT / "config" / "layers.cfg"
 MAX_CONCURRENT = int(os.environ.get("REGOLIT_WEB_CONCURRENCY", "4"))
 MAX_QUEUE = int(os.environ.get("REGOLIT_WEB_QUEUE", "12"))
-RUN_TIMEOUT = float(os.environ.get("REGOLIT_WEB_TIMEOUT", "7200"))
+RUN_TIMEOUT = float(os.environ.get("REGOLIT_WEB_TIMEOUT", "43200"))
 MAX_RUNS_KEPT = int(os.environ.get("REGOLIT_WEB_MAX_RUNS", "500"))
 MAX_RUNS_DISK_GB = float(os.environ.get("REGOLIT_WEB_MAX_DISK_GB", "200"))
 # Threads per model run (the slope relaxation is OpenMP-parallel): share the physical cores among
@@ -439,6 +439,18 @@ def pid_alive(pid: Optional[int]) -> bool:
 PROGRESS_PATTERN = re.compile(r"Progress: ([0-9.]+)%")
 
 
+def read_tail(path: Path, max_bytes: int) -> str:
+    """The last max_bytes of a text file (the model log can reach hundreds of MB)."""
+    with open(path, "rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        size = handle.tell()
+        handle.seek(max(0, size - max_bytes))
+        data = handle.read()
+    if size > max_bytes:
+        data = data.split(b"\n", 1)[-1]   # drop the partial first line
+    return data.decode(errors="replace")
+
+
 def progress_of(run_id: str, summary: Dict) -> Dict:
     """Progress fields for an unfinished run, read from the model's log."""
     info = {"progress": None, "phase": "waiting for a free slot" if summary.get("status") == "queued" else "starting", "elapsed_s": None}
@@ -447,7 +459,7 @@ def progress_of(run_id: str, summary: Dict) -> Dict:
     log_path = RUNS_DIR / run_id / "log" / "log.txt"
     if summary.get("status") == "running" and log_path.exists():
         try:
-            lines = log_path.read_text(errors="replace").splitlines()
+            lines = read_tail(log_path, 64 * 1024).splitlines()
         except OSError:
             lines = []
         for line in reversed(lines):
@@ -1070,9 +1082,14 @@ async def delete_run(run_id: str) -> Dict:
 
 
 @app.get("/api/runs/{run_id}/log", response_class=PlainTextResponse)
-async def get_log(run_id: str) -> str:
+async def get_log(run_id: str, tail: Optional[int] = Query(None, ge=1, le=64 * 1024 * 1024)) -> str:
+    """The model log; ?tail=N returns only its last N bytes."""
     path = run_dir(run_id) / "log" / "log.txt"
-    return path.read_text() if path.exists() else ""
+    if not path.exists():
+        return ""
+    if tail:
+        return await asyncio.to_thread(read_tail, path, tail)
+    return FileResponse(str(path), media_type="text/plain")
 
 
 @app.get("/api/runs/{run_id}/map/{kind}/{step}.png")

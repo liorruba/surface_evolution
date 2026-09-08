@@ -348,6 +348,9 @@ int main() {
 
         }
         // Print craters histogram to file:
+        if (Crater::zModelWarnings > 0) {
+                addLogEntry("Z-model annuli with a non-increasing landing distance were skipped in " + std::to_string(Crater::zModelWarnings) + " craters.", true);
+        }
         addLogEntry("Finished running. Saving histograms and data.", true);
         addLogEntry("Printing crater histogram file.", true);
         cratersHistogram.print("./output/craters_histogram.txt");
