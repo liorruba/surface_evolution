@@ -98,12 +98,6 @@
   .controls input[type=range]{width:220px;accent-color:var(--accent)}
   .controls select,.controls input[type=number]{background:var(--shell2);border:1px solid var(--edge);border-radius:7px;padding:4px 6px;font-size:12px}
   .caption{color:var(--dim);font-size:12.5px;margin-top:8px;line-height:1.5}
-  .tiles{display:flex;flex-direction:column;gap:12px}
-  .tile{background:var(--raise);border:1px solid var(--edge-soft);border-radius:12px;padding:11px 14px}
-  .tile .num{font-family:var(--mono);font-size:26px;line-height:1.05;letter-spacing:-.02em}
-  .tile .num small{font-size:14px;color:var(--dim);margin-left:4px}
-  .tile .eyebrow{margin-top:6px}
-  .tile p{margin:4px 0 0;color:var(--dim);font-size:12px}
   .panel{background:var(--shell2);border:1px solid var(--edge-soft);border-radius:12px;padding:14px 16px;margin-top:18px;max-width:870px}
   .section-head{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:12.5px;color:var(--dim)}
   .section-head input[type=range]{width:240px;accent-color:var(--accent)}
@@ -261,7 +255,6 @@
             </div>
             <div class="caption" id="mapCaption"></div>
           </div>
-          <div class="tiles" id="tiles"></div>
         </div>
 
         <div class="panel">
@@ -690,20 +683,9 @@
     const half = p.regionWidth / 2, res = summary.full_resolution || summary.resolution;
     const pos = $("secPos"); pos.min = -half + res / 2; pos.max = half - res / 2; pos.step = res; pos.value = 0; S.at = 0;
     $("section").parentElement.classList.toggle("hide", !summary.has_subsurface);
-    renderTiles(summary); renderKinds(); renderSetup(summary); renderFiles(summary);
+    renderKinds(); renderSetup(summary); renderFiles(summary);
     show("runView"); selectTab("maps");
     updateMap(); updateSection(); refreshHistograms();
-  }
-  function renderTiles(s) {
-    const p = s.parameters;
-    const dz = s.elevation_max - s.elevation_min;
-    const tiles = [
-      [fmtInt(s.total_craters), "", "craters formed", (s.presets && s.presets.test ? "One test crater of " + fmt(p.testCraterDiameter) + " m" : "Impactors larger than " + fmt(p.minimumImpactorDiameter) + " m over " + fmt(p.endTime) + " Ma") + " on " + fmt(Math.round(p.regionWidth * p.regionWidth / 1e6 * 1000) / 1000) + " km²" + (s.secondary_craters ? ", of which " + fmtInt(s.secondary_craters) + " secondaries." : ".")],
-      [fmtInt(s.visible_craters), s.total_craters ? '<small>' + Math.round(100 * s.visible_craters / s.total_craters) + '%</small>' : "", "still visible", "Craters whose depth changed by less than half; the rest were buried or overprinted."],
-      [fmt(Math.round(dz * 100) / 100), "<small>m</small>", "relief", "Elevation range over all steps: " + fmt(Math.round(s.elevation_min * 100) / 100) + " to " + fmt(Math.round(s.elevation_max * 100) / 100) + " m."],
-      [s.grid + "&times;" + s.grid, "", "map grid", "Maps at " + fmt(s.resolution) + " m/px; the model grid is " + s.full_grid + "&times;" + s.full_grid + " at " + fmt(s.full_resolution) + " m/px. " + s.steps.length + " steps, " + s.duration_s + " s of compute."],
-    ];
-    $("tiles").innerHTML = tiles.map(([n, u, e, d]) => '<div class="tile"><div class="num">' + n + u + '</div><div class="eyebrow">' + e + '</div><p>' + d + '</p></div>').join("");
   }
   function renderKinds() {
     const kinds = $("kinds");
