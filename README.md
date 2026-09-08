@@ -51,7 +51,8 @@ ejection speed (no atmosphere), and the crater scaling uses the full landing spe
 ### Ice and soot
 
 `isVolatiles 1` turns on the volatile processes: periodic ice deposition (`iceEmplacementInterval`,
-`iceEmplacementThickness`), sublimation (`sublimationInterval`, `sublimationThickness`) and the loss of
+`iceEmplacementThickness`), sublimation (`sublimationInterval`, `sublimationThickness`; the sublimation
+model itself is still a stub, `Grid::sublimateIce`, so these are reserved) and the loss of
 ice and soot from the ejecta (`ejectaVolatileRetention`, `ejectaSootRetention`). With `isVolatiles 0`
 (the default) none of these act, and ice and soot in the initial layers are passive tracers that the
 craters redistribute.
