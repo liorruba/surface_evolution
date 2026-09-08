@@ -314,9 +314,10 @@ def validate(request: RunRequest) -> Tuple[Dict[str, float], Optional[List[List[
     effective = default_parameters()
     effective.update(overrides)
     width, res = effective["regionWidth"], effective["resolution"]
-    cells = round(width / res) ** 2
+    side = round(width / res)
+    cells = side ** 2
     if cells > MAX_GRID_CELLS:
-        raise HTTPException(400, "the grid would have {:,} cells; the limit is {} x {}. Increase the resolution or shrink the region.".format(int(cells), MAX_GRID_SIDE, MAX_GRID_SIDE))
+        raise HTTPException(400, "the grid would have {0:,} x {0:,} cells; the limit is {1:,} x {1:,}. Increase the resolution or shrink the region.".format(int(side), MAX_GRID_SIDE))
     if effective["downsamplingResolution"] < res:
         overrides["downsamplingResolution"] = res
         effective["downsamplingResolution"] = res
